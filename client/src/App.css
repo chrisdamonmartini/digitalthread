@@ -463,6 +463,12 @@ main {
   background-color: white;
   font-family: 'Segoe UI', sans-serif;
   font-size: 13px;
+  color: #333;
+}
+
+.filter-input::placeholder {
+  color: #999;
+  font-style: italic;
 }
 
 .filter-input:focus {

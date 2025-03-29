@@ -387,6 +387,10 @@ function FlowView() {
         const spaceBelowFilter = 10;
         const searchIconSize = 16;
         
+        // Modify filter positioning
+        const filterBoxWidth = nodeWidth * 0.7; // Reduce width to 70% of node width
+        const filterBoxY = parentPadding + parentTitleHeight + 20; // Move down a bit more
+        
         // Calculate total parent height needed with padding
         const parentHeight = parentPadding + parentTitleHeight + spaceBelowTitle + 
                              filterBoxHeight + spaceBelowFilter + // Add space for filter
@@ -473,15 +477,39 @@ function FlowView() {
         });
 
         // --- 4. Add Filter Input Box ---
-        const filterBoxY = parentPadding + parentTitleHeight + 10; // Position below title with some spacing
+        // Use filterBoxY already defined above
         
-        // Add search icon for the filter box
+        // Add filter input box - position it first, then the search icon to its right
+        newNodes.push({
+          id: `filter-${parentNodeId}`,
+          parentNode: parentNodeId,
+          draggable: false,
+          selectable: false,
+          type: 'filter', // Custom filter node type
+          position: { x: parentPadding, y: filterBoxY }, // Position at the left edge
+          data: { 
+            label: '', 
+            domainId: parentNodeId,
+            updateFilter: updateDomainFilter,
+            placeholder: "Filter",
+            currentFilter: domainFilters[parentNodeId] || ''
+          },
+          style: {
+            width: filterBoxWidth,
+            height: 20,
+            fontSize: '0.9em',
+            fontFamily: "'Segoe UI', sans-serif",
+            zIndex: 1
+          }
+        });
+        
+        // Add search icon for the filter box - now on the right side of the input
         newNodes.push({
           id: `search-icon-${parentNodeId}`,
           parentNode: parentNodeId,
           draggable: false,
           selectable: false,
-          position: { x: parentPadding, y: filterBoxY + 2 }, // Center vertically with input
+          position: { x: parentPadding + filterBoxWidth + 4, y: filterBoxY + 2 }, // Position after the input box
           data: { label: null },
           style: {
             width: searchIconSize,
@@ -493,30 +521,6 @@ function FlowView() {
             backgroundColor: 'transparent',
             border: 'none',
             outline: 'none',
-            zIndex: 1
-          }
-        });
-        
-        // Add filter input box
-        newNodes.push({
-          id: `filter-${parentNodeId}`,
-          parentNode: parentNodeId,
-          draggable: false,
-          selectable: false,
-          type: 'filter', // Change this to use our custom filter node type
-          position: { x: parentPadding + searchIconSize + 4, y: filterBoxY }, // Position after the search icon
-          data: { 
-            label: '', 
-            domainId: parentNodeId,
-            updateFilter: updateDomainFilter,
-            placeholder: "Filter...",
-            currentFilter: domainFilters[parentNodeId] || ''
-          },
-          style: {
-            width: nodeWidth - searchIconSize - 8,
-            height: 20,
-            fontSize: '0.9em',
-            fontFamily: "'Segoe UI', sans-serif",
             zIndex: 1
           }
         });

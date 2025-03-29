@@ -27,9 +27,15 @@ function FilterNode({ data, isConnectable }) {
         ref={inputRef}
         type="text"
         className="filter-input"
-        placeholder={data.placeholder || "Filter..."}
+        placeholder={data.placeholder || "Filter"}
         onChange={handleChange}
-        style={{ width: '100%', height: '100%', padding: '4px', boxSizing: 'border-box' }}
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          padding: '4px 8px',
+          boxSizing: 'border-box',
+          fontSize: '0.9em'
+        }}
       />
     </div>
   );

@@ -47,6 +47,10 @@ app.use('/api/parameters', parameterRoutes);
 const functionRoutes = require('./routes/functionRoutes');
 app.use('/api/functions', functionRoutes); // Use plural path
 
+// Import and use appearance routes
+const appearanceRoutes = require('./routes/appearanceRoutes');
+app.use('/api/appearance', appearanceRoutes);
+
 app.get('/', (req, res) => {
   res.send('Digital Thread Navigator Backend is running!');
 });

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import IconPreview from './IconPreview';
 import './SettingsPage.css'; // Add CSS import
 
 const API_URL = 'http://localhost:3001/api';
@@ -441,8 +442,200 @@ const ItemManagementSettings = () => {
   );
 };
 
+// Component for appearance settings (colors and icons)
+const AppearanceSettings = () => {
+  const [domains, setDomains] = useState([]);
+  const [domainSettings, setDomainSettings] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Default colors for domains
+  const defaultColors = [
+    '#4285F4', // Blue
+    '#34A853', // Green
+    '#FBBC05', // Yellow
+    '#EA4335', // Red
+    '#8F00FF', // Purple
+    '#FF6D01', // Orange
+    '#0097A7', // Teal
+    '#757575', // Gray
+    '#E91E63', // Pink
+    '#9E9E9E'  // Light Gray
+  ];
+
+  // Available icons for domains
+  const availableIcons = [
+    { id: 'default', name: 'Default' },
+    { id: 'mission', name: 'Mission' },
+    { id: 'requirement', name: 'Requirement' },
+    { id: 'parameter', name: 'Parameter' },
+    { id: 'function', name: 'Function' },
+    { id: 'logical', name: 'Logical' },
+    { id: 'simulation', name: 'Simulation' },
+    { id: 'test', name: 'Test' }
+  ];
+
+  // Fetch current appearance settings
+  useEffect(() => {
+    const fetchAppearanceSettings = async () => {
+      setLoading(true);
+      try {
+        // Get domain list
+        const configResponse = await fetch(`${API_URL}/config`);
+        if (!configResponse.ok) {
+          throw new Error(`HTTP error! status: ${configResponse.status}`);
+        }
+        const configData = await configResponse.json();
+        setDomains(configData.domainOrder || []);
+        
+        // Get appearance settings
+        const appearanceResponse = await fetch(`${API_URL}/appearance`);
+        let appearanceData = {};
+        
+        if (appearanceResponse.ok) {
+          appearanceData = await appearanceResponse.json();
+        } else if (appearanceResponse.status !== 404) {
+          throw new Error(`HTTP error! status: ${appearanceResponse.status}`);
+        }
+        
+        // Initialize settings for each domain
+        const settings = {};
+        
+        configData.domainOrder.forEach((domain, index) => {
+          settings[domain] = {
+            color: appearanceData[domain]?.color || defaultColors[index % defaultColors.length],
+            icon: appearanceData[domain]?.icon || 'default'
+          };
+        });
+        
+        setDomainSettings(settings);
+        setError(null);
+      } catch (e) {
+        console.error("Error fetching appearance settings:", e);
+        setError("Failed to load appearance settings");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAppearanceSettings();
+  }, []);
+  
+  // Update color for a domain
+  const handleColorChange = (domain, color) => {
+    setDomainSettings(prev => ({
+      ...prev,
+      [domain]: {
+        ...prev[domain],
+        color
+      }
+    }));
+    setSaveSuccess(false);
+  };
+  
+  // Update icon for a domain
+  const handleIconChange = (domain, icon) => {
+    setDomainSettings(prev => ({
+      ...prev,
+      [domain]: {
+        ...prev[domain],
+        icon
+      }
+    }));
+    setSaveSuccess(false);
+  };
+  
+  // Save appearance settings
+  const saveAppearanceSettings = async () => {
+    try {
+      const response = await fetch(`${API_URL}/appearance`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(domainSettings),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+      
+    } catch (e) {
+      console.error("Error saving appearance settings:", e);
+      setError("Failed to save appearance settings");
+    }
+  };
+  
+  if (loading) return <div>Loading appearance settings...</div>;
+  if (error) return <div className="error-message">{error}</div>;
+  
+  return (
+    <div className="appearance-settings">
+      <h3>Domain Appearance</h3>
+      <p>Customize the color and icon for each domain.</p>
+      
+      <div className="appearance-domain-list">
+        {domains.map(domain => (
+          <div key={domain} className="appearance-domain-item">
+            <div className="domain-preview" style={{ backgroundColor: domainSettings[domain]?.color || '#ccc' }}>
+              <div className="domain-icon-wrapper">
+                <IconPreview iconType={domainSettings[domain]?.icon || 'default'} size={32} />
+              </div>
+              <span>{domain}</span>
+            </div>
+            
+            <div className="appearance-controls">
+              <div className="color-control">
+                <label htmlFor={`color-${domain}`}>Color:</label>
+                <input
+                  id={`color-${domain}`}
+                  type="color"
+                  value={domainSettings[domain]?.color || '#cccccc'}
+                  onChange={(e) => handleColorChange(domain, e.target.value)}
+                />
+              </div>
+              
+              <div className="icon-control">
+                <label htmlFor={`icon-${domain}`}>Icon:</label>
+                <select
+                  id={`icon-${domain}`}
+                  value={domainSettings[domain]?.icon || 'default'}
+                  onChange={(e) => handleIconChange(domain, e.target.value)}
+                >
+                  {availableIcons.map(icon => (
+                    <option key={icon.id} value={icon.id}>{icon.name}</option>
+                  ))}
+                </select>
+                <div className="icon-preview">
+                  <IconPreview iconType={domainSettings[domain]?.icon || 'default'} size={24} />
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      <div className="appearance-actions">
+        <button 
+          onClick={saveAppearanceSettings}
+          className="primary-button"
+        >
+          Save Appearance Settings
+        </button>
+        {saveSuccess && (
+          <span className="success-message">Appearance settings saved successfully!</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
 function SettingsPage() {
-    const [activeTab, setActiveTab] = useState('domains'); // 'domains' or 'items'
+    const [activeTab, setActiveTab] = useState('domains'); // 'domains', 'items', or 'appearance'
         
     return (
         <div className="settings-page-container">
@@ -461,11 +654,18 @@ function SettingsPage() {
                 >
                     Item Management
                 </button>
+                <button 
+                    className={`tab-button ${activeTab === 'appearance' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('appearance')}
+                >
+                    Appearance
+                </button>
             </div>
 
             <div className="settings-tab-content">
                 {activeTab === 'domains' && <DomainOrderSettings />}
                 {activeTab === 'items' && <ItemManagementSettings />}
+                {activeTab === 'appearance' && <AppearanceSettings />}
             </div>
         </div>
     );

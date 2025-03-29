@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Handle } from 'reactflow';
+import './FilterNode.css';
 
 // Custom node for filter input
 function FilterNode({ data, isConnectable }) {
@@ -21,8 +22,15 @@ function FilterNode({ data, isConnectable }) {
     }
   };
 
+  // Handle click to ensure input gets focus
+  const handleClick = () => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
   return (
-    <div className="filter-node">
+    <div className="filter-node" onClick={handleClick}>
       <input
         ref={inputRef}
         type="text"
@@ -32,9 +40,10 @@ function FilterNode({ data, isConnectable }) {
         style={{ 
           width: '100%', 
           height: '100%', 
-          padding: '4px 8px',
+          padding: '8px 10px',
           boxSizing: 'border-box',
-          fontSize: '0.9em'
+          fontSize: '0.9em',
+          cursor: 'text'
         }}
       />
     </div>

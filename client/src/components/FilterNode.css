@@ -1,0 +1,46 @@
+.filter-node {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 10;
+  cursor: text;
+  pointer-events: all;
+}
+
+.filter-input {
+  width: 100% !important;
+  height: 100% !important;
+  padding: 8px 10px !important;
+  box-sizing: border-box !important;
+  border: 1px solid #ddd !important;
+  border-radius: 3px !important;
+  background-color: white !important;
+  font-family: 'Segoe UI', sans-serif !important;
+  font-size: 13px !important;
+  color: #333 !important;
+  cursor: text !important;
+  pointer-events: all !important;
+  z-index: 10 !important;
+}
+
+.filter-input::placeholder {
+  color: #999 !important;
+  font-style: italic !important;
+}
+
+.filter-input:focus {
+  outline: none !important;
+  border-color: #0078d4 !important;
+  box-shadow: 0 0 3px rgba(0, 120, 212, 0.3) !important;
+}
+
+/* Override any potential React Flow styles that might interfere */
+.react-flow__node .filter-node,
+.react-flow__node .filter-input {
+  pointer-events: all !important;
+}
+
+/* Ensure parent handles click events properly */
+.react-flow__node-filter {
+  pointer-events: all !important;
+} 

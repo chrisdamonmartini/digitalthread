@@ -382,14 +382,14 @@ function FlowView() {
         }
         
         // Define filter box variables
-        const filterBoxHeight = 28;
+        const filterBoxHeight = 38; // Increase height by about 40% (from 28 to 38)
         const filterBoxPadding = 8;
         const spaceBelowFilter = 10;
         const searchIconSize = 16;
         
         // Modify filter positioning
-        const filterBoxWidth = nodeWidth * 0.7; // Reduce width to 70% of node width
-        const filterBoxY = parentPadding + parentTitleHeight + 20; // Move down a bit more
+        const filterBoxWidth = nodeWidth * 0.85; // Increase width from 70% to 85%
+        const filterBoxY = parentPadding + parentTitleHeight + 30; // Move down further (from 20 to 30)
         
         // Calculate total parent height needed with padding
         const parentHeight = parentPadding + parentTitleHeight + spaceBelowTitle + 
@@ -496,10 +496,10 @@ function FlowView() {
           },
           style: {
             width: filterBoxWidth,
-            height: 20,
+            height: filterBoxHeight - 18, // Match the increased height, adjusting for padding
             fontSize: '0.9em',
             fontFamily: "'Segoe UI', sans-serif",
-            zIndex: 1
+            zIndex: 10 // Increase zIndex to ensure it's on top
           }
         });
         
@@ -509,7 +509,7 @@ function FlowView() {
           parentNode: parentNodeId,
           draggable: false,
           selectable: false,
-          position: { x: parentPadding + filterBoxWidth + 4, y: filterBoxY + 2 }, // Position after the input box
+          position: { x: parentPadding + filterBoxWidth + 4, y: filterBoxY + (filterBoxHeight - 18)/2 }, // Center vertically with taller input
           data: { label: null },
           style: {
             width: searchIconSize,
@@ -521,7 +521,7 @@ function FlowView() {
             backgroundColor: 'transparent',
             border: 'none',
             outline: 'none',
-            zIndex: 1
+            zIndex: 10 // Increase zIndex to ensure it's on top
           }
         });
 

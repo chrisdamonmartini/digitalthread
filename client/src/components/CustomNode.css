@@ -1,0 +1,69 @@
+/* Base styles for the custom node */
+.custom-node-item {
+    border: none;
+    border-radius: 2px;
+    padding: 2px 6px;
+    background-color: white;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 0.9em;
+    text-align: left;
+    cursor: default;
+    transition: background-color 0.15s ease-in-out;
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+    margin: 0;
+}
+
+/* Hover effect */
+.custom-node-item:hover {
+    background-color: #e6f2ff;
+}
+
+/* Content wrapper */
+.node-content {
+    overflow: hidden;
+    padding: 0;
+}
+
+/* Title styling with forced truncation but NOT bold */
+.custom-node-item .node-title {
+    font-weight: normal;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+    max-width: 100%;
+    line-height: 1.2;
+}
+
+.custom-node-item p {
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    line-height: 1.2;
+}
+
+.node-details {
+    font-size: 0.85em;
+    color: #555;
+}
+
+.node-description {
+    font-size: 0.8em;
+    color: #666;
+    margin-top: 2px;
+}
+
+/* Make handles less visible until needed */
+.react-flow__handle {
+    visibility: hidden;
+}
+
+.custom-node-item:hover .react-flow__handle {
+    visibility: visible;
+} 

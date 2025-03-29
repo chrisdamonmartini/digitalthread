@@ -1,10 +1,20 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ReactFlow, { ReactFlowProvider, Background, Controls, useNodesState, useEdgesState, MarkerType } from 'reactflow'; // Import React Flow components
+import { Routes, Route } from 'react-router-dom'; // Import routing components
 import 'reactflow/dist/style.css'; // Import default styles
+
+// Import icons for domain headers
+import missionIcon from './icons/typeTarget48.svg'; 
+import scenarioIcon from './icons/typeOperation48.svg';
+import requirementsIcon from './icons/Requirements.svg';
+import parameterIcon from './icons/typeItemRevision48.svg';
+import functionsIcon from './icons/typeCaeBoundaryConditionItem48.svg';
 
 import './App.css';
 import CustomNode from './components/CustomNode'; // Import CustomNode
-import ControlPanel from './components/ControlPanel'; // Import ControlPanel
+import AppHeader from './components/AppHeader'; // Import new header
+import SettingsPage from './components/SettingsPage'; // Import settings page
+import FlowControls from './components/FlowControls'; // Import flow controls
 
 const API_URL = 'http://localhost:3001/api';
 
@@ -19,11 +29,11 @@ function getRelationshipType(sourceDomain, targetDomain) {
     return 'RELATES_TO'; 
 }
 
-function AppContent() { 
-  // --- State --- 
+// Main content for the React Flow view
+function FlowView() { 
+  // --- State needed ONLY for the Flow View --- 
   const [missions, setMissions] = useState([]);
-  const [isLoadingMissions, setIsLoadingMissions] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false); 
+  const [isLoadingMissions, setIsLoadingMissions] = useState(true); 
   const [scenarios, setScenarios] = useState([]);
   const [isLoadingScenarios, setIsLoadingScenarios] = useState(true);
   const [requirements, setRequirements] = useState([]);
@@ -33,32 +43,26 @@ function AppContent() {
   const [functions, setFunctions] = useState([]);
   const [isLoadingFunctions, setIsLoadingFunctions] = useState(true);
   
-  // State for individual Add forms - MOVED to ControlPanel or passed differently
-  // const [newMissionTitle, setNewMissionTitle] = useState('');
-  // ... etc for all domains ...
-  
-  // Shared state for Bulk Generate form
-  const [numMissions, setNumMissions] = useState(10); 
-  const [minSubMissions, setMinSubMissions] = useState(4); 
-  const [maxSubMissions, setMaxSubMissions] = useState(8); 
-
-  // Config, Linking, Messages State
+  // Re-add config state needed for layout
   const [appConfig, setAppConfig] = useState(null); 
   const [localDomainOrder, setLocalDomainOrder] = useState([]); 
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
-  const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
-  const [configDirty, setConfigDirty] = useState(false); 
+  
   const [linkingState, setLinkingState] = useState({ fromId: null, fromDomain: null });
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
-  const [nodeDisplayMode, setNodeDisplayMode] = useState('titleOnly');
+  const [error, setError] = useState(null); 
+  const [successMessage, setSuccessMessage] = useState(null); 
+  const [nodeDisplayMode, setNodeDisplayMode] = useState('titleOnly'); 
+  // Add state for relationship lines toggle
+  const [showRelationshipLines, setShowRelationshipLines] = useState(true);
+  // Add state for domain icons toggle
+  const [showDomainIcons, setShowDomainIcons] = useState(true);
 
   // React Flow State
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 
-  // ... (useEffect for successMessage) ...
+  // --- useEffect for successMessage (Keep for linking feedback) --- 
   useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => setSuccessMessage(null), 3000);
@@ -66,26 +70,26 @@ function AppContent() {
     }
   }, [successMessage]);
 
-  // --- Data Fetching --- 
+  // --- Data Fetching (Keep fetch functions) --- 
   const fetchConfig = useCallback(async () => {
-    setIsLoadingConfig(true);
+    setIsLoadingConfig(true); // Make sure this setter exists
     setError(null);
     try {
       const response = await fetch(`${API_URL}/config`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      setAppConfig(data);
-      setLocalDomainOrder(data.domainOrder || []);
-      setConfigDirty(false);
+      // Ensure we set the state variables added back
+      setAppConfig(data); 
+      setLocalDomainOrder(data.domainOrder || []); 
     } catch (e) {
       console.error("Error fetching config:", e);
       setError('Failed to load application configuration.');
-      setAppConfig({}); 
+      setAppConfig({}); // Or null, depending on how downstream code handles error
       setLocalDomainOrder([]);
     } finally {
-      setIsLoadingConfig(false);
+      setIsLoadingConfig(false); // Ensure this setter exists
     }
-  }, []); // Empty dependency array
+  }, [setError, setAppConfig, setLocalDomainOrder, setIsLoadingConfig]); // Add setters to dependencies
 
   const fetchMissions = useCallback(async () => {
     setIsLoadingMissions(true);
@@ -101,7 +105,7 @@ function AppContent() {
     } finally {
       setIsLoadingMissions(false);
     }
-  }, []); // Empty dependency array
+  }, []);
 
   const fetchScenarios = useCallback(async () => {
     setIsLoadingScenarios(true);
@@ -117,7 +121,7 @@ function AppContent() {
     } finally {
       setIsLoadingScenarios(false);
     }
-  }, []); // Empty dependency array
+  }, []);
 
   const fetchRequirements = useCallback(async () => {
     setIsLoadingRequirements(true);
@@ -133,9 +137,8 @@ function AppContent() {
     } finally {
       setIsLoadingRequirements(false);
     }
-  }, []); // Empty dependency array
+  }, []);
 
-  // --- Fetch Parameters --- 
   const fetchParameters = useCallback(async () => {
     setIsLoadingParameters(true);
     setError(null);
@@ -150,9 +153,8 @@ function AppContent() {
     } finally {
       setIsLoadingParameters(false);
     }
-  }, []); // Empty dependency array
+  }, []);
 
-  // --- Fetch Functions --- 
   const fetchFunctions = useCallback(async () => {
     setIsLoadingFunctions(true);
     setError(null);
@@ -185,323 +187,7 @@ function AppContent() {
     });
   }, []); // Empty array: Run only once on mount
 
-  // --- useEffect to Calculate Nodes and Edges --- 
-  useEffect(() => {
-    if (isLoadingConfig || isLoadingMissions || isLoadingScenarios || isLoadingRequirements || isLoadingParameters || isLoadingFunctions || !appConfig) return;
-
-    console.log("Calculating nodes and edges with styled Parent Grouping...");
-
-    const newNodes = [];
-    const newEdges = [];
-    // Layout parameters
-    const columnStartX = 50;    
-    const parentPadding = 20; 
-    const parentTitleHeight = 30; // Reduced height for title area inside parent
-    const columnWidth = 300;    
-    const nodeWidth = columnWidth - (parentPadding * 2); 
-    const columnGap = 60;       
-    const nodeHeight = 60;      // Height of item nodes 
-    const nodeGapY = 0;         // No gap between items
-    const indentX = 30;         
-    const topLevelGapY = 0;    // No gap between top-level items
-    
-    const itemMaps = {
-        Mission: new Map(missions.map(item => [item.id, item])),
-        Scenario: new Map(scenarios.map(item => [item.id, item])),
-        Requirements: new Map(requirements.map(item => [item.id, item])),
-        Parameter: new Map(parameters.map(item => [item.id, item])),
-        Functions: new Map(functions.map(item => [item.id, item])),
-    };
-    const childIdSets = {
-        Mission: new Set(missions.flatMap(item => item.childMissionIds || [])),
-        Scenario: new Set(scenarios.flatMap(item => item.childScenarioIds || [])),
-        Requirements: new Set(requirements.flatMap(item => item.childRequirementIds || [])),
-        Parameter: new Set(parameters.flatMap(item => item.childParameterIds || [])),
-        Functions: new Set(functions.flatMap(item => item.childFunctionIds || [])),
-    };
-
-    let currentColumnX = columnStartX;
-
-    localDomainOrder.forEach((domainName) => {
-        const itemMap = itemMaps[domainName];
-        const childIdSet = childIdSets[domainName];
-        if (!itemMap) return; 
-
-        // --- Calculate height needed for items --- 
-        let totalContentHeight = 0;
-        const topLevelItems = Array.from(itemMap.values()).filter(item => !childIdSet?.has(item.id));
-        const calculateBranchHeight = (itemId) => {
-            const item = itemMap.get(itemId);
-            if (!item) return 0;
-            
-            let currentBranchHeight = nodeHeight; // Start with current node height
-            const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
-            const childIds = item[childIdKey] || [];
-            
-            childIds.forEach(childId => {
-                currentBranchHeight += calculateBranchHeight(childId); // Add child height (nodeGapY is 0)
-            });
-            return currentBranchHeight;
-        };
-        topLevelItems.forEach(topItem => { totalContentHeight += calculateBranchHeight(topItem.id); });
-        
-        const parentHeight = parentTitleHeight + totalContentHeight + (parentPadding * 2);
-        const parentNodeId = `domain-${domainName.replace(/\s+/g, '-')}`;
-        const parentX = currentColumnX;
-        const parentY = 0; 
-
-        // --- 1. Add Parent Node --- 
-        newNodes.push({
-          id: parentNodeId,
-          type: 'group', // Can be default or group
-          position: { x: parentX, y: parentY },
-          data: { label: null }, 
-          style: { 
-              width: columnWidth, 
-              height: parentHeight,
-              backgroundColor: 'rgba(245, 245, 245, 0.8)', // Light background for container
-              border: '1px solid #ccc',
-              borderRadius: '8px',
-              // Padding is visual, children are positioned absolutely relative to parent origin
-          },
-          zIndex: 0 // Ensure parent is behind children and title
-        });
-
-        // --- 2. Add Title Node (Positioned inside parent) ---
-        newNodes.push({
-          id: `title-${parentNodeId}`,
-          parentNode: parentNodeId, // Make title part of the group
-          // extent: 'parent', // Title shouldn't be dragged anyway
-          draggable: false,
-          selectable: false,
-          position: { x: parentPadding, y: parentPadding / 2 }, // Position inside parent top
-          data: { label: domainName },
-          style: { 
-              width: nodeWidth,
-              fontWeight: 'bold', 
-              fontSize: '1.2em', 
-              color: '#333',
-              textAlign: 'center',
-              borderBottom: '1px solid #ddd', 
-              paddingBottom: '5px', 
-              backgroundColor: 'transparent', // Transparent background
-              zIndex: 1 // Above parent bg, below items
-          }
-        });
-
-        let currentRelativeY = parentTitleHeight + parentPadding; // Starting Y *inside* the parent
-
-        // --- 3. Recursive function to position CHILD nodes --- 
-        const processNodeAndChildren = (itemId, parentNodeId, relativeXBase, startY, depth) => {
-            const item = itemMap.get(itemId);
-            if (!item) return { yOffset: 0 };
-
-            const nodeX = relativeXBase + (depth * indentX); 
-            const nodeY = startY; 
-            
-            newNodes.push({
-                id: item.id,
-                parentNode: parentNodeId, // Associate with parent 
-                extent: 'parent', // Constrain to parent bounds
-                position: { x: nodeX, y: nodeY }, // Position relative to parent
-                type: 'custom',
-                data: { itemData: item, domain: domainName, displayMode: nodeDisplayMode },
-                zIndex: 2 // Ensure items are above parent and title
-            });
-
-            let cumulativeYOffset = nodeHeight; // Node's own height
-
-            const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
-            const childIds = item[childIdKey] || [];
-            if (childIds.length > 0) {
-                 childIds.forEach(childId => {
-                     const { yOffset: childBranchHeight } = processNodeAndChildren(
-                         childId, parentNodeId, relativeXBase, startY + cumulativeYOffset, depth + 1
-                     );
-                     cumulativeYOffset += childBranchHeight; // Add child height (nodeGapY is 0)
-                 });
-            }
-            return { yOffset: cumulativeYOffset };
-        };
-
-        // --- 4. Process top-level items --- 
-        topLevelItems.forEach(topItem => {
-             const { yOffset: branchHeight } = processNodeAndChildren(topItem.id, parentNodeId, parentPadding, currentRelativeY, 0);
-             currentRelativeY += branchHeight; // Move Y down
-        });
-
-        // --- 5. Calculate Inter-domain Edges (uses currentItemMap) --- 
-        const itemsInThisColumn = Array.from(itemMap.values());
-        itemsInThisColumn.forEach((item) => {
-            const sourceId = item.id;
-            let targetIds = [];
-            if (domainName === 'Mission') targetIds = item.drivenScenarioIds || [];
-            else if (domainName === 'Scenario') targetIds = item.requiredRequirementIds || [];
-            else if (domainName === 'Requirements') targetIds = item.definedParameterIds || [];
-            else if (domainName === 'Parameter') targetIds = item.inputToFunctionIds || [];
-            
-            targetIds.forEach(targetId => {
-                 const edgeType = getRelationshipType(domainName, localDomainOrder[localDomainOrder.indexOf(domainName) + 1]);
-                 newEdges.push({
-                     id: `${sourceId}-${edgeType}-${targetId}`,
-                     source: sourceId, 
-                     target: targetId, 
-                     sourceHandle: 'right-source',
-                     targetHandle: 'left-target',
-                     type: 'smoothstep', 
-                     animated: true,
-                     style: { strokeWidth: 2, stroke: '#007bff' },
-                     markerEnd: { 
-                         type: MarkerType.ArrowClosed, 
-                         width: 15, 
-                         height: 15,
-                         color: '#007bff' 
-                     },
-                     zIndex: 5 // Add zIndex to render edges above nodes
-                 });
-            });
-        });
-
-        currentColumnX += columnWidth + columnGap;
-    }); // End of localDomainOrder.forEach
-
-    console.log(`Calculated ${newNodes.length} nodes (Parents, Titles, Items).`);
-    console.log(`Calculated ${newEdges.length} edges (Inter-domain only).`);
-    setNodes(newNodes);
-    setEdges(newEdges);
-
-}, [ // Dependencies (Ensure all external variables used are listed)
-    missions, scenarios, requirements, parameters, functions,
-    localDomainOrder, appConfig, nodeDisplayMode,
-    isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
-    setNodes, setEdges
-]);
-
-  // --- Add Item Handler (Generic - To be passed to ControlPanel) ---
-  const handleAddItem = useCallback(async (event, domainName, itemData) => {
-    event.preventDefault();
-    // Basic validation (can be enhanced in ControlPanel or here)
-    if (!itemData || !itemData.title?.trim()) {
-        alert(`Please enter a title for the new ${domainName}.`);
-        return;
-    }
-
-    let apiPath = domainName.toLowerCase().replace(/\s+/g, '');
-    if (domainName === 'Mission') apiPath = 'missions';
-    else if (domainName === 'Scenario') apiPath = 'scenarios';
-    else if (domainName === 'Requirements') apiPath = 'requirements';
-    else if (domainName === 'Parameter') apiPath = 'parameters';
-    else if (domainName === 'Functions') apiPath = 'functions';
-    else { console.error('Unknown domain for add:', domainName); return; }
-
-    const apiUrl = `${API_URL}/${apiPath}`;
-    let setIsLoading, refreshFunc;
-    // Map domain to specific loading state setter and refresh function
-    if (domainName === 'Mission') { setIsLoading = setIsLoadingMissions; refreshFunc = fetchMissions; }
-    else if (domainName === 'Scenario') { setIsLoading = setIsLoadingScenarios; refreshFunc = fetchScenarios; }
-    else if (domainName === 'Requirements') { setIsLoading = setIsLoadingRequirements; refreshFunc = fetchRequirements; }
-    else if (domainName === 'Parameter') { setIsLoading = setIsLoadingParameters; refreshFunc = fetchParameters; }
-    else if (domainName === 'Functions') { setIsLoading = setIsLoadingFunctions; refreshFunc = fetchFunctions; }
-    else { return; } // Should not happen
-
-    setIsLoading(true); setError(null);
-    try {
-        const response = await fetch(apiUrl, { 
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(itemData) // Send the data collected by ControlPanel
-        });
-        if (!response.ok) { 
-            const err = await response.json().catch(()=>{}); 
-            throw new Error(err?.error || `HTTP ${response.statusText}`); 
-        }
-        // No need to clear form state here, ControlPanel can handle that if needed
-        if (refreshFunc) await refreshFunc();
-    } catch (e) { 
-        console.error(`Err add ${domainName}:`, e);
-        setError(`Failed to add ${domainName}: ${e.message}`);
-    } finally { 
-        setIsLoading(false); 
-    }
-  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]); // Add all fetch functions
-
-  // --- Bulk Generate Handler ---
-  const handleBulkGenerate = useCallback(async (event, domainName) => {
-    // ... (logic remains largely the same, need to update API path check and refresh logic)
-    event.preventDefault();
-    if (!domainName) return;
-    
-    let apiPathSegment = domainName.toLowerCase().replace(/\s+/g, '');
-    let refreshFunction = null;
-
-    // Map domain name to API path and refresh function
-    switch(domainName) {
-        case 'Mission': 
-            apiPathSegment = 'missions'; 
-            refreshFunction = fetchMissions;
-            break;
-        case 'Scenario': 
-            apiPathSegment = 'scenarios'; 
-            refreshFunction = fetchScenarios;
-            break;
-        case 'Requirements': 
-            apiPathSegment = 'requirements'; 
-            refreshFunction = fetchRequirements;
-            break;
-        case 'Parameter': 
-            apiPathSegment = 'parameters'; 
-            refreshFunction = fetchParameters;
-            break;
-        case 'Functions': // Added
-            apiPathSegment = 'functions'; 
-            refreshFunction = fetchFunctions;
-            break;
-        // Add other cases here...
-        default: 
-            console.error(`API path segment unknown for domain: ${domainName}`);
-            setError(`Cannot determine API path for domain: ${domainName}`);
-            return;
-    }
-        
-    if (numMissions <= 0 || minSubMissions < 0 || maxSubMissions < minSubMissions) {
-        alert('Please enter valid numbers for generation.'); return;
-    }
-    setIsGenerating(true); setError(null);
-    try {
-      const apiUrl = `${API_URL}/${apiPathSegment}/bulk-generate`; 
-      console.log(`Calling bulk generate: ${apiUrl}`);
-
-      const response = await fetch(apiUrl, { 
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ count: numMissions, minSubs: minSubMissions, maxSubs: maxSubMissions }),
-      });
-
-      const resultData = await response.json();
-      if (!response.ok) {
-        throw new Error(resultData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      console.log(`Bulk generation successful for ${domainName}:`, resultData.message);
-      setSuccessMessage(resultData.message || `Bulk generated ${domainName}s.`);
-
-      // Call the correct refresh function
-      if (refreshFunction) await refreshFunction();
-
-    } catch (e) {
-      console.error(`Error bulk generating ${domainName}s:`, e);
-      setError(`Failed to bulk generate ${domainName}s: ${e.message}`);
-    } finally {
-      setIsGenerating(false); 
-    }
-  }, [numMissions, minSubMissions, maxSubMissions, fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]); // Add fetchFunctions dependency
-
-  // --- Config Update Logic --- 
-  const updateConfigOnBackend = async (configUpdate) => { /* ... */ };
-  const handleToggleAdjacentConnections = async (event) => { /* ... */ };
-  const moveDomain = (index, direction) => { /* ... */ };
-  const handleSaveDomainOrder = async () => { /* ... */ };
-
-  // --- Relationship Logic (Re-adding definitions) --- 
+  // --- Relationship Logic (Keep for linking interaction) --- 
   const startLinking = (fromId, fromDomain) => {
       setLinkingState({ fromId, fromDomain });
       setSuccessMessage(null); // Clear previous success message
@@ -517,7 +203,6 @@ function AppContent() {
       
       console.log(`Attempting to link ${fromDomain} (${fromId}) -> ${toDomain} (${toId}) with type ${relationshipType}`);
       setError(null); // Clear previous errors
-      setIsUpdatingConfig(true); // Use general updating flag for visual feedback
 
       try {
           const response = await fetch(`${API_URL}/relationships`, {
@@ -548,7 +233,6 @@ function AppContent() {
           console.error("Error creating link:", e);
           setError(`Failed to create link: ${e.message}`);
       } finally {
-          setIsUpdatingConfig(false);
           setLinkingState({ fromId: null, fromDomain: null }); // Reset linking state
       }
   };
@@ -558,89 +242,368 @@ function AppContent() {
       console.log('Linking cancelled');
   };
 
-  // Determine combined loading state 
-  const isBusy = isLoadingMissions || isLoadingScenarios || isLoadingRequirements || isLoadingParameters || isLoadingFunctions || isGenerating || isLoadingConfig || isUpdatingConfig;
+  // --- useEffect to Calculate Nodes and Edges --- 
+  useEffect(() => {
+    // Check if data is still loading
+    if (isLoadingConfig || isLoadingMissions || isLoadingScenarios || isLoadingRequirements || isLoadingParameters || isLoadingFunctions || !appConfig) {
+      console.log("Waiting for data to calculate hierarchical layout...");
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
 
-  // --- Main JSX (Updated) --- 
+    console.log(`Calculating ${showRelationshipLines ? 'nodes and edges' : 'nodes only'} with Parent Containers and Space...`);
+
+    const newNodes = [];
+    const newEdges = [];
+    
+    // Domain-specific configurations including icons and colors
+    const domainConfig = {
+      'Mission': { icon: missionIcon, color: '#14364F' },
+      'Scenario': { icon: scenarioIcon, color: '#14364F' },
+      'Requirements': { icon: requirementsIcon, color: '#14364F' },
+      'Parameter': { icon: parameterIcon, color: '#14364F' },
+      'Functions': { icon: functionsIcon, color: '#14364F' }
+    };
+    
+    // Layout parameters
+    const columnStartX = 50;    
+    const parentPadding = 15; // Padding inside parent node
+    const parentTitleHeight = 25; // Space allocated for the title text itself
+    const spaceBelowTitle = 45; // *** Space for filter/icons ***
+    const columnWidth = 380; // Width to handle indentation
+    const nodeWidth = columnWidth - (parentPadding * 2) - 20; // Reduce a bit for indentation
+    const maxIndentation = 4; // Maximum number of indentation levels
+    const indentX = Math.min(20, (nodeWidth / maxIndentation)); // Calculate indentation that won't exceed container
+    const columnGap = 50;
+    
+    // Dynamic spacing based on display mode       
+    const baseItemHeight = nodeDisplayMode === 'titleOnly' ? 25 : 
+                          nodeDisplayMode === 'idAndTitle' ? 30 : 
+                          50; // full display mode
+    const nodeGapY = nodeDisplayMode === 'titleOnly' ? 0 : 
+                    nodeDisplayMode === 'idAndTitle' ? 1 : 
+                    2; // Minimal spacing between nodes
+    const detailLineHeight = 18; 
+    const descriptionLineHeight = 18; 
+    const descriptionMaxLines = 2;
+
+    const itemMaps = {
+        Mission: new Map(missions.map(item => [item.id, item])),
+        Scenario: new Map(scenarios.map(item => [item.id, item])),
+        Requirements: new Map(requirements.map(item => [item.id, item])),
+        Parameter: new Map(parameters.map(item => [item.id, item])),
+        Functions: new Map(functions.map(item => [item.id, item])),
+    };
+    const childIdSets = {
+        Mission: new Set(missions.flatMap(item => item.childMissionIds || [])),
+        Scenario: new Set(scenarios.flatMap(item => item.childScenarioIds || [])),
+        Requirements: new Set(requirements.flatMap(item => item.childRequirementIds || [])),
+        Parameter: new Set(parameters.flatMap(item => item.childParameterIds || [])),
+        Functions: new Set(functions.flatMap(item => item.childFunctionIds || [])),
+    };
+
+    let currentColumnX = columnStartX;
+
+    localDomainOrder.forEach((domainName) => {
+        const itemMap = itemMaps[domainName];
+        const childIdSet = childIdSets[domainName];
+        if (!itemMap) return; 
+
+        // --- Calculate required height for children recursively --- 
+        let totalContentHeight = 0;
+        const topLevelItems = Array.from(itemMap.values()).filter(item => !childIdSet?.has(item.id));
+        
+        // Define calculateBranchHeight here so it can access nodeDisplayMode and other constants
+        const calculateBranchHeight = (itemId) => {
+            const item = itemMap.get(itemId);
+            if (!item) return 0;
+            
+            // Use display mode-specific base height
+            let calculatedNodeHeight = baseItemHeight;
+            
+            // Add extra height for details in full mode
+            if (nodeDisplayMode === 'full') {
+                if ((domainName === 'Parameter' && (item.unit || item.valueType)) || 
+                    (domainName === 'Functions' && item.functionType)) {
+                    calculatedNodeHeight += detailLineHeight;
+                }
+                if (item.description) {
+                    const lines = Math.min(descriptionMaxLines, (item.description.length / 30) + 1);
+                    calculatedNodeHeight += lines * descriptionLineHeight;
+                }
+            }
+            
+            // Calculate height for this branch (node + children)
+            let currentBranchHeight = calculatedNodeHeight;
+            const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
+            const childIds = item[childIdKey] || [];
+            
+            // Add heights of children with gaps
+            if (childIds.length > 0) {
+                childIds.forEach((childId, index) => {
+                    currentBranchHeight += calculateBranchHeight(childId);
+                    // Add gap after each child except the last
+                    if (index < childIds.length - 1) {
+                        currentBranchHeight += nodeGapY;
+                    }
+                });
+            }
+            
+            return currentBranchHeight;
+        };
+        
+        // First calculate content height without processing nodes
+        if (topLevelItems.length > 0) {
+            // Get raw content height
+            topLevelItems.forEach((topItem, index) => {
+                totalContentHeight += calculateBranchHeight(topItem.id);
+                // Add gap after each item (except the last one if we don't want padding at the bottom)
+                if (index < topLevelItems.length - 1) {
+                    totalContentHeight += nodeGapY;
+                }
+            });
+        }
+        
+        // Calculate total parent height needed with some padding at the bottom
+        const parentHeight = parentPadding + parentTitleHeight + spaceBelowTitle + totalContentHeight + parentPadding;
+        const parentNodeId = `domain-${domainName.replace(/\s+/g, '-')}`;
+        const parentX = currentColumnX;
+        const parentY = 0; 
+
+        // Get domain-specific configuration
+        const domainSpecificConfig = domainConfig[domainName] || {};
+        const domainColor = domainSpecificConfig.color || '#14364F'; // Default color if not specified
+
+        // --- 1. Add Parent Node --- 
+        newNodes.push({
+          id: parentNodeId,
+          type: 'default',
+          position: { x: parentX, y: parentY },
+          data: { label: null }, 
+          draggable: true, 
+          selectable: false,
+          style: { 
+              width: columnWidth, 
+              height: parentHeight, 
+              backgroundColor: 'white',
+              border: `1px solid ${domainColor}`, // Use domain-specific color
+              borderRadius: '4px',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+          },
+          zIndex: 0 
+        });
+
+        // --- 2. Add Domain Icon (if icons are enabled) ---
+        if (showDomainIcons) {
+          if (domainSpecificConfig.icon) {
+            newNodes.push({
+              id: `icon-${parentNodeId}`,
+              parentNode: parentNodeId,
+              draggable: false,
+              selectable: false,
+              position: { x: parentPadding, y: parentPadding + 4 }, // Adjust to vertically center with title text
+              data: { label: null },
+              style: {
+                width: 40,
+                height: 40,
+                backgroundImage: `url(${domainSpecificConfig.icon})`,
+                backgroundSize: 'contain',
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center',
+                backgroundColor: 'transparent',
+                border: 'none',
+                outline: 'none',
+                boxShadow: 'none',
+                filter: 'drop-shadow(0 0 0 transparent)', // Remove any filter effects
+                zIndex: 1
+              }
+            });
+          }
+        }
+
+        // --- 3. Add Title Node (positioned based on icons) ---
+        const titleX = showDomainIcons ? parentPadding + 45 : parentPadding;
+        const titleWidth = showDomainIcons ? nodeWidth - 45 : nodeWidth;
+        
+        newNodes.push({
+          id: `title-${parentNodeId}`,
+          parentNode: parentNodeId, 
+          draggable: false,
+          selectable: false,
+          position: { x: titleX, y: parentPadding },
+          data: { label: domainName },
+          style: { 
+              width: titleWidth,
+              fontFamily: "'Segoe UI', sans-serif",
+              fontWeight: 'bold',
+              fontSize: '1.2em', 
+              color: '#333',
+              textAlign: 'left',
+              paddingBottom: '5px',
+              backgroundColor: 'transparent',
+              border: 'none', // Remove any border
+              outline: 'none', // Add outline: none to ensure no outline is displayed
+              zIndex: 1 
+          }
+        });
+
+        // Starting Y for the *items* inside the parent
+        let startYOffsetForItems = parentPadding + parentTitleHeight + spaceBelowTitle; 
+
+        // --- 4. Recursive function to position CHILD nodes --- 
+        const processNodeAndChildren = (itemId, parentNodeId, relativeXBase, startY, depth) => {
+            const item = itemMap.get(itemId); 
+            if (!item) return { yOffset: 0 };
+
+            // Calculate position, ensuring it doesn't extend beyond container bounds
+            const actualIndent = Math.min(depth, maxIndentation) * indentX; // Limit max indentation
+            const nodeX = relativeXBase + actualIndent; 
+            const nodeY = startY; 
+            
+            newNodes.push({
+                id: item.id,
+                parentNode: parentNodeId,
+                extent: 'parent',
+                position: { x: nodeX, y: nodeY },
+                type: 'custom',
+                data: { 
+                    itemData: item, 
+                    domain: domainName, 
+                    displayMode: nodeDisplayMode,
+                    maxContentWidth: nodeWidth - actualIndent // Pass available width to node
+                },
+                style: { 
+                    width: nodeWidth,
+                    maxWidth: '100%',
+                    overflow: 'hidden'
+                },
+                draggable: false,
+                zIndex: 2
+            });
+
+            let cumulativeYOffset = baseItemHeight; // Use dynamic baseItemHeight here
+            
+            const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
+            const childIds = item[childIdKey] || [];
+            if (childIds.length > 0) {
+                 childIds.forEach(childId => {
+                     const { yOffset: childBranchHeight } = processNodeAndChildren(
+                         childId, parentNodeId, relativeXBase, startY + cumulativeYOffset + nodeGapY, depth + 1
+                     );
+                     cumulativeYOffset += childBranchHeight + nodeGapY; // Add gap between nodes
+                 });
+            }
+            return { yOffset: cumulativeYOffset };
+        };
+
+        // --- 5. Process top-level items --- 
+        let currentRelativeY = startYOffsetForItems; 
+        topLevelItems.forEach(topItem => {
+             const { yOffset: branchHeight } = processNodeAndChildren(topItem.id, parentNodeId, parentPadding, currentRelativeY, 0);
+             currentRelativeY += branchHeight + nodeGapY; // Add gap between top-level items
+        });
+
+        currentColumnX += columnWidth + columnGap;
+    }); // End of localDomainOrder.forEach
+
+    // Calculate relationship edges if they should be shown
+    if (showRelationshipLines) {
+      localDomainOrder.forEach((domainName) => {
+        const itemMap = itemMaps[domainName];
+        if (!itemMap) return;
+        
+        const itemsInThisColumn = Array.from(itemMap.values());
+        itemsInThisColumn.forEach((item) => {
+          const sourceId = item.id;
+          let targetIds = [];
+          if (domainName === 'Mission') targetIds = item.drivenScenarioIds || [];
+          else if (domainName === 'Scenario') targetIds = item.requiredRequirementIds || [];
+          else if (domainName === 'Requirements') targetIds = item.definedParameterIds || [];
+          else if (domainName === 'Parameter') targetIds = item.inputToFunctionIds || [];
+          
+          targetIds.forEach(targetId => {
+            const edgeType = getRelationshipType(domainName, localDomainOrder[localDomainOrder.indexOf(domainName) + 1]);
+            newEdges.push({
+              id: `${sourceId}-${edgeType}-${targetId}`,
+              source: sourceId, 
+              target: targetId, 
+              sourceHandle: 'right-source', 
+              targetHandle: 'left-target', 
+              type: 'smoothstep', 
+              animated: false,
+              style: { 
+                strokeWidth: 3,
+                stroke: '#00587c',
+              },
+              markerEnd: { 
+                type: MarkerType.ArrowClosed, 
+                width: 15, 
+                height: 15, 
+                color: '#00587c'
+              },
+              zIndex: 5
+            });
+          });
+        });
+      });
+    }
+
+    console.log(`Calculated ${newNodes.length} nodes.`);
+    console.log(`Calculated ${newEdges.length} edges (Inter-domain only).`);
+    setNodes(newNodes);
+    setEdges(newEdges);
+
+  }, [ // Dependencies 
+    missions, scenarios, requirements, parameters, functions,
+    localDomainOrder, appConfig, nodeDisplayMode, showRelationshipLines, showDomainIcons,
+    isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
+    setNodes, setEdges
+  ]);
+
+  // --- Main JSX for Flow View --- 
   return (
-    <div className="App" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <header className="App-header"><h1>Digital Thread Navigator</h1></header>
+    <div className="flow-view-container" style={{ height: '100%' }}>
+      {/* React Flow Canvas */} 
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes}
+        fitView
+      >
+        <Background />
+        <Controls />
+      </ReactFlow>
       
-      {/* Render Settings Panel */} 
-      <section className="settings-panel">
-          <h2>Configuration Settings</h2>
-          {isLoadingConfig && <p>Loading configuration...</p>}
-          {!isLoadingConfig && appConfig && (
-             <div className="config-details">
-                 {/* Domain Order UI */} 
-                 <div className="config-domain-order"> {/* ... */} </div>
-                 {/* Adjacent Connections Toggle UI */} 
-                 <div className="config-toggle"> {/* ... */} </div>
-
-                 {/* Node Display Mode Toggle */} 
-                 <div className="config-display-mode">
-                     <strong>Node Display:</strong>
-                     <label><input type="radio" name="displayMode" value="titleOnly" checked={nodeDisplayMode === 'titleOnly'} onChange={(e) => setNodeDisplayMode(e.target.value)} /> Title Only</label>
-                     <label><input type="radio" name="displayMode" value="idAndTitle" checked={nodeDisplayMode === 'idAndTitle'} onChange={(e) => setNodeDisplayMode(e.target.value)} /> ID + Title</label>
-                     <label><input type="radio" name="displayMode" value="full" checked={nodeDisplayMode === 'full'} onChange={(e) => setNodeDisplayMode(e.target.value)} /> Full Detail</label>
-                 </div>
-             </div>
-          )}
-          {error && <p className="error message-box">Error: {error}</p>}
-          {successMessage && <p className="success message-box">{successMessage}</p>}
-          {linkingState.fromId && (
-              <div className="linking-indicator message-box">
-                  <span>Linking from {linkingState.fromDomain} ({linkingState.fromId}). Click target item or </span>
-                  <button onClick={cancelLinking}>Cancel</button>
-              </div>
-           )}
-      </section>
-
-      {/* Render Control Panel */} 
-      <ControlPanel 
-          localDomainOrder={localDomainOrder}
-          isBusy={isBusy}
-          isGenerating={isGenerating}
-          onAddItem={handleAddItem} // Pass the generic add handler
-          onBulkGenerate={handleBulkGenerate}
-          // Pass shared bulk state
-          numMissions={numMissions} setNumMissions={setNumMissions} 
-          minSubMissions={minSubMissions} setMinSubMissions={setMinSubMissions} 
-          maxSubMissions={maxSubMissions} setMaxSubMissions={setMaxSubMissions}
-          // Pass individual loading states for Add buttons
-          isLoadingMissions={isLoadingMissions} 
-          isLoadingScenarios={isLoadingScenarios} 
-          isLoadingRequirements={isLoadingRequirements} 
-          isLoadingParameters={isLoadingParameters} 
-          isLoadingFunctions={isLoadingFunctions}
-          // Note: We need a better way to manage Add form state, 
-          // ideally within ControlPanel itself or passed more generically.
-          // For now, this example assumes ControlPanel manages its own form inputs.
+      {/* Flow Controls with Legend and Display Options */}
+      <FlowControls 
+        nodeDisplayMode={nodeDisplayMode}
+        setNodeDisplayMode={setNodeDisplayMode}
+        showRelationshipLines={showRelationshipLines}
+        setShowRelationshipLines={setShowRelationshipLines}
+        showDomainIcons={showDomainIcons}
+        setShowDomainIcons={setShowDomainIcons}
       />
-
-      {/* Render React Flow */} 
-      <div className="reactflow-wrapper" style={{ flexGrow: 1, height: '100%' }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          nodeTypes={nodeTypes} // *** Pass custom node types ***
-          fitView
-        >
-          <Background />
-          <Controls />
-        </ReactFlow>
-      </div>
     </div>
   );
 }
 
-// New App component wraps AppContent with the Provider
+// App component now handles routing and overall layout
 function App() {
   return (
-    <ReactFlowProvider>
-      <AppContent />
+    // ReactFlowProvider is needed around components using flow hooks
+    <ReactFlowProvider> 
+        <div className="App" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+            <AppHeader />
+            <div className="main-content" style={{ flexGrow: 1, overflow: 'auto' }}> { /* Allow content to scroll */}
+                <Routes>
+                    <Route path="/" element={<FlowView />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                </Routes>
+            </div>
+        </div>
     </ReactFlowProvider>
   );
 }

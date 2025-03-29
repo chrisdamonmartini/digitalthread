@@ -511,7 +511,7 @@ function FlowView() {
           selectable: false,
           position: { 
             x: parentPadding + filterBoxWidth + 10, // Moved further right (from +4 to +10)
-            y: filterBoxY + ((filterBoxHeight - 18) / 2) // Better center alignment with filter box
+            y: filterBoxY + ((filterBoxHeight - 18) / 2) - 4 // Move up by 4px for better centering
           },
           data: { label: null },
           style: {

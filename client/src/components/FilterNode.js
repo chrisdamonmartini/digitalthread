@@ -1,0 +1,38 @@
+import React, { useEffect, useRef } from 'react';
+import { Handle } from 'reactflow';
+
+// Custom node for filter input
+function FilterNode({ data, isConnectable }) {
+  const inputRef = useRef(null);
+  
+  useEffect(() => {
+    // Focus input on mount
+    if (inputRef.current) {
+      // Set value from any existing filter
+      inputRef.current.value = data.currentFilter || '';
+    }
+  }, [data.currentFilter]);
+
+  const handleChange = (e) => {
+    const value = e.target.value;
+    // Call the updateFilter function passed from the parent
+    if (data.updateFilter && data.domainId) {
+      data.updateFilter(data.domainId, value);
+    }
+  };
+
+  return (
+    <div className="filter-node">
+      <input
+        ref={inputRef}
+        type="text"
+        className="filter-input"
+        placeholder={data.placeholder || "Filter..."}
+        onChange={handleChange}
+        style={{ width: '100%', height: '100%', padding: '4px', boxSizing: 'border-box' }}
+      />
+    </div>
+  );
+}
+
+export default FilterNode; 

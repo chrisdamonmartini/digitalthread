@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import ReactFlow, { ReactFlowProvider, Background, Controls, useNodesState, useEdgesState, MarkerType } from 'reactflow'; // Import React Flow components
+import ReactFlow, { ReactFlowProvider, Background, Controls, useNodesState, useEdgesState, MarkerType, applyNodeChanges, applyEdgeChanges, MiniMap, Panel } from 'reactflow'; // Import React Flow components
 import { Routes, Route } from 'react-router-dom'; // Import routing components
 import 'reactflow/dist/style.css'; // Import default styles
 
@@ -9,12 +9,14 @@ import scenarioIcon from './icons/typeOperation48.svg';
 import requirementsIcon from './icons/Requirements.svg';
 import parameterIcon from './icons/typeItemRevision48.svg';
 import functionsIcon from './icons/typeCaeBoundaryConditionItem48.svg';
+import searchIcon from './icons/cmdSearch16.svg'; // Import search icon for the filter box
 
 import './App.css';
 import CustomNode from './components/CustomNode'; // Import CustomNode
 import AppHeader from './components/AppHeader'; // Import new header
 import SettingsPage from './components/SettingsPage'; // Import settings page
 import FlowControls from './components/FlowControls'; // Import flow controls
+import FilterNode from './components/FilterNode'; // Import the FilterNode component
 
 const API_URL = 'http://localhost:3001/api';
 
@@ -57,10 +59,16 @@ function FlowView() {
   // Add state for domain icons toggle
   const [showDomainIcons, setShowDomainIcons] = useState(true);
 
+  // Add state for filter text for each domain
+  const [domainFilters, setDomainFilters] = useState({});
+
   // React Flow State
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
+  const nodeTypes = useMemo(() => ({
+    custom: CustomNode,
+    filter: FilterNode, // Register the FilterNode component
+  }), []);
 
   // --- useEffect for successMessage (Keep for linking feedback) --- 
   useEffect(() => {
@@ -242,6 +250,14 @@ function FlowView() {
       console.log('Linking cancelled');
   };
 
+  // Function to update filter for a specific domain
+  const updateDomainFilter = useCallback((domainId, filterText) => {
+    setDomainFilters(prev => ({
+      ...prev,
+      [domainId]: filterText
+    }));
+  }, []);
+
   // --- useEffect to Calculate Nodes and Edges --- 
   useEffect(() => {
     // Check if data is still loading
@@ -365,8 +381,16 @@ function FlowView() {
             });
         }
         
-        // Calculate total parent height needed with some padding at the bottom
-        const parentHeight = parentPadding + parentTitleHeight + spaceBelowTitle + totalContentHeight + parentPadding;
+        // Define filter box variables
+        const filterBoxHeight = 28;
+        const filterBoxPadding = 8;
+        const spaceBelowFilter = 10;
+        const searchIconSize = 16;
+        
+        // Calculate total parent height needed with padding
+        const parentHeight = parentPadding + parentTitleHeight + spaceBelowTitle + 
+                             filterBoxHeight + spaceBelowFilter + // Add space for filter
+                             totalContentHeight + parentPadding;
         const parentNodeId = `domain-${domainName.replace(/\s+/g, '-')}`;
         const parentX = currentColumnX;
         const parentY = 0; 
@@ -448,10 +472,59 @@ function FlowView() {
           }
         });
 
-        // Starting Y for the *items* inside the parent
-        let startYOffsetForItems = parentPadding + parentTitleHeight + spaceBelowTitle; 
+        // --- 4. Add Filter Input Box ---
+        const filterBoxY = parentPadding + parentTitleHeight + 10; // Position below title with some spacing
+        
+        // Add search icon for the filter box
+        newNodes.push({
+          id: `search-icon-${parentNodeId}`,
+          parentNode: parentNodeId,
+          draggable: false,
+          selectable: false,
+          position: { x: parentPadding, y: filterBoxY + 2 }, // Center vertically with input
+          data: { label: null },
+          style: {
+            width: searchIconSize,
+            height: searchIconSize,
+            backgroundImage: `url(${searchIcon})`,
+            backgroundSize: 'contain',
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'center',
+            backgroundColor: 'transparent',
+            border: 'none',
+            outline: 'none',
+            zIndex: 1
+          }
+        });
+        
+        // Add filter input box
+        newNodes.push({
+          id: `filter-${parentNodeId}`,
+          parentNode: parentNodeId,
+          draggable: false,
+          selectable: false,
+          type: 'filter', // Change this to use our custom filter node type
+          position: { x: parentPadding + searchIconSize + 4, y: filterBoxY }, // Position after the search icon
+          data: { 
+            label: '', 
+            domainId: parentNodeId,
+            updateFilter: updateDomainFilter,
+            placeholder: "Filter...",
+            currentFilter: domainFilters[parentNodeId] || ''
+          },
+          style: {
+            width: nodeWidth - searchIconSize - 8,
+            height: 20,
+            fontSize: '0.9em',
+            fontFamily: "'Segoe UI', sans-serif",
+            zIndex: 1
+          }
+        });
 
-        // --- 4. Recursive function to position CHILD nodes --- 
+        // Starting Y for the *items* inside the parent - update to account for filter box
+        let startYOffsetForItems = parentPadding + parentTitleHeight + spaceBelowTitle + filterBoxHeight + spaceBelowFilter;
+
+        // --- 5. Recursive function to position CHILD nodes --- 
         const processNodeAndChildren = (itemId, parentNodeId, relativeXBase, startY, depth) => {
             const item = itemMap.get(itemId); 
             if (!item) return { yOffset: 0 };
@@ -461,43 +534,59 @@ function FlowView() {
             const nodeX = relativeXBase + actualIndent; 
             const nodeY = startY; 
             
-            newNodes.push({
-                id: item.id,
-                parentNode: parentNodeId,
-                extent: 'parent',
-                position: { x: nodeX, y: nodeY },
-                type: 'custom',
-                data: { 
-                    itemData: item, 
-                    domain: domainName, 
-                    displayMode: nodeDisplayMode,
-                    maxContentWidth: nodeWidth - actualIndent // Pass available width to node
-                },
-                style: { 
-                    width: nodeWidth,
-                    maxWidth: '100%',
-                    overflow: 'hidden'
-                },
-                draggable: false,
-                zIndex: 2
-            });
+            // Check if this node should be filtered out
+            const currentFilter = domainFilters[parentNodeId]?.toLowerCase() || '';
+            const itemMatchesFilter = !currentFilter || 
+                item.id.toLowerCase().includes(currentFilter) ||
+                item.title.toLowerCase().includes(currentFilter) ||
+                (item.description && item.description.toLowerCase().includes(currentFilter));
+            
+            if (itemMatchesFilter) {
+                newNodes.push({
+                    id: item.id,
+                    parentNode: parentNodeId,
+                    extent: 'parent',
+                    position: { x: nodeX, y: nodeY },
+                    type: 'custom',
+                    data: { 
+                        itemData: item, 
+                        domain: domainName, 
+                        displayMode: nodeDisplayMode,
+                        maxContentWidth: nodeWidth - actualIndent // Pass available width to node
+                    },
+                    style: { 
+                        width: nodeWidth,
+                        maxWidth: '100%',
+                        overflow: 'hidden'
+                    },
+                    draggable: false,
+                    zIndex: 2
+                });
+            }
 
             let cumulativeYOffset = baseItemHeight; // Use dynamic baseItemHeight here
             
             const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
             const childIds = item[childIdKey] || [];
+            
+            // Process each child node recursively
             if (childIds.length > 0) {
                  childIds.forEach(childId => {
+                     // Skip processing if parent is filtered out (prevents orphaned children)
+                     if (!itemMatchesFilter) return;
+                    
                      const { yOffset: childBranchHeight } = processNodeAndChildren(
                          childId, parentNodeId, relativeXBase, startY + cumulativeYOffset + nodeGapY, depth + 1
                      );
                      cumulativeYOffset += childBranchHeight + nodeGapY; // Add gap between nodes
                  });
             }
-            return { yOffset: cumulativeYOffset };
+            
+            // Only return the height if this node is visible after filtering
+            return { yOffset: itemMatchesFilter ? cumulativeYOffset : 0 };
         };
 
-        // --- 5. Process top-level items --- 
+        // --- 6. Process top-level items --- 
         let currentRelativeY = startYOffsetForItems; 
         topLevelItems.forEach(topItem => {
              const { yOffset: branchHeight } = processNodeAndChildren(topItem.id, parentNodeId, parentPadding, currentRelativeY, 0);
@@ -558,6 +647,8 @@ function FlowView() {
     missions, scenarios, requirements, parameters, functions,
     localDomainOrder, appConfig, nodeDisplayMode, showRelationshipLines, showDomainIcons,
     isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
+    domainFilters, // Add domainFilters as a dependency
+    updateDomainFilter, // Add updateDomainFilter as a dependency
     setNodes, setEdges
   ]);
 
@@ -575,6 +666,10 @@ function FlowView() {
       >
         <Background />
         <Controls />
+        <MiniMap />
+        <Panel position="top-right">
+          {/* ... panel content ... */}
+        </Panel>
       </ReactFlow>
       
       {/* Flow Controls with Legend and Display Options */}

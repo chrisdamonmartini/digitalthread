@@ -8,21 +8,52 @@ import './App.css';
 const API_URL = 'http://localhost:3001/api';
 
 function App() {
+  // State for Missions
   const [missions, setMissions] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false); // Separate loading state for generation
-  const [error, setError] = useState(null);
+  const [isLoadingMissions, setIsLoadingMissions] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false); 
   const [newMissionTitle, setNewMissionTitle] = useState('');
   const [newMissionDescription, setNewMissionDescription] = useState('');
-
-  // State for bulk generation form
   const [numMissions, setNumMissions] = useState(10);
   const [minSubMissions, setMinSubMissions] = useState(4);
   const [maxSubMissions, setMaxSubMissions] = useState(8);
+  
+  // State for Configuration
+  const [appConfig, setAppConfig] = useState(null);
+  const [localDomainOrder, setLocalDomainOrder] = useState([]);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
+  const [configDirty, setConfigDirty] = useState(false);
+
+  // General Error State
+  const [error, setError] = useState(null);
+
+  // --- Fetch Config --- 
+  const fetchConfig = useCallback(async () => {
+    setIsLoadingConfig(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_URL}/config`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setAppConfig(data);
+      setLocalDomainOrder(data.domainOrder || []);
+      setConfigDirty(false);
+    } catch (e) {
+      console.error("Error fetching config:", e);
+      setError('Failed to load application configuration.');
+      setAppConfig({});
+      setLocalDomainOrder([]);
+    } finally {
+      setIsLoadingConfig(false);
+    }
+  }, []);
 
   // --- Fetch Missions --- 
   const fetchMissions = useCallback(async () => {
-    setIsLoading(true);
+    setIsLoadingMissions(true);
     setError(null);
     try {
       const response = await fetch(`${API_URL}/missions`);
@@ -35,25 +66,25 @@ function App() {
       console.error("Error fetching missions:", e);
       setError('Failed to load missions. Is the backend server running?');
     } finally {
-      setIsLoading(false);
+      setIsLoadingMissions(false);
     }
-  }, []); // useCallback ensures this function identity is stable
+  }, []); 
 
-  // Fetch missions on initial component mount
+  // Fetch initial data (config and missions)
   useEffect(() => {
+    fetchConfig();
     fetchMissions();
-  }, [fetchMissions]); // Re-run if fetchMissions changes (it won't due to useCallback)
+  }, [fetchConfig, fetchMissions]); 
 
   // --- Add Mission --- 
   const handleAddMission = async (event) => {
-    event.preventDefault(); // Prevent default form submission
+    event.preventDefault(); 
     if (!newMissionTitle.trim()) {
       alert('Please enter a mission title.');
       return;
     }
-    setIsLoading(true); // Indicate activity
+    setIsLoadingMissions(true); 
     setError(null);
-
     try {
       const response = await fetch(`${API_URL}/missions`, {
         method: 'POST',
@@ -65,43 +96,30 @@ function App() {
           description: newMissionDescription 
         }),
       });
-
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})); // Try to get error details
+        const errorData = await response.json().catch(() => ({})); 
         throw new Error(`HTTP error! status: ${response.status} - ${errorData.error || 'Unknown error'}`);
       }
-
-      // Clear the form
       setNewMissionTitle('');
       setNewMissionDescription('');
-      // Refresh the mission list to show the new one
       await fetchMissions(); 
-
     } catch (e) {
       console.error("Error adding mission:", e);
       setError(`Failed to add mission: ${e.message}`);
     } finally {
-      setIsLoading(false);
+      setIsLoadingMissions(false); 
     }
   };
 
   // --- Bulk Generate Missions --- 
   const handleBulkGenerate = async (event) => {
     event.preventDefault();
-    // Basic validation
     if (numMissions <= 0 || minSubMissions < 0 || maxSubMissions < minSubMissions) {
         alert('Please enter valid numbers for generation. Max sub-missions must be >= min sub-missions.');
         return;
     }
-    
     setIsGenerating(true);
     setError(null);
-    
-    // Remove placeholder console log and alert
-    // console.log('Starting bulk generation with:', { numMissions, minSubMissions, maxSubMissions });
-    // alert(`Placeholder: ...`);
-
-    // Implement backend API call
     try {
       const response = await fetch(`${API_URL}/missions/bulk-generate`, {
         method: 'POST',
@@ -109,23 +127,18 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          count: numMissions,      // Match backend expected key
-          minSubs: minSubMissions, // Match backend expected key
-          maxSubs: maxSubMissions  // Match backend expected key
+          count: numMissions,      
+          minSubs: minSubMissions, 
+          maxSubs: maxSubMissions  
         }),
       });
-
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})); // Try to get error details
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(`HTTP error! status: ${response.status} - ${errorData.error || 'Unknown error'}`);
       }
-
       const resultData = await response.json();
       console.log('Bulk generation successful:', resultData.message);
-      
-      // Refresh the mission list to show the newly generated ones
       await fetchMissions(); 
-
     } catch (e) {
       console.error("Error bulk generating missions:", e);
       setError(`Failed to bulk generate missions: ${e.message}`);
@@ -133,114 +146,250 @@ function App() {
       setIsGenerating(false);
     }
   };
+  
+  // --- Config Update Logic --- 
+
+  // Generic function to update config on backend
+  const updateConfigOnBackend = async (configUpdate) => {
+      setIsUpdatingConfig(true);
+      setError(null);
+      try {
+          const response = await fetch(`${API_URL}/config`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(configUpdate),
+          });
+          if (!response.ok) {
+              const errorData = await response.json().catch(() => ({})); 
+              throw new Error(`HTTP error! status: ${response.status} - ${errorData.error || 'Unknown error'}`);
+          }
+          const updatedConfig = await response.json();
+          setAppConfig(updatedConfig); // Update main config state
+          if (configUpdate.domainOrder) {
+             setLocalDomainOrder(updatedConfig.domainOrder || []);
+             setConfigDirty(false); 
+          }
+          console.log('Config updated successfully');
+          return true; // Indicate success
+      } catch (e) {
+          console.error("Error updating config:", e);
+          setError(`Failed to update config: ${e.message}`);
+          return false; // Indicate failure
+      } finally {
+          setIsUpdatingConfig(false);
+      }
+  };
+  
+  // Handler for toggling adjacent connections
+  const handleToggleAdjacentConnections = async (event) => {
+      const newSetting = event.target.checked;
+      if (!appConfig) return; 
+      // Call the generic update function
+      updateConfigOnBackend({ allowOnlyAdjacentConnections: newSetting });
+  };
+
+  // Handlers for reordering domains locally
+  const moveDomain = (index, direction) => {
+    const newOrder = [...localDomainOrder];
+    const item = newOrder[index];
+    const swapIndex = index + direction;
+
+    if (swapIndex < 0 || swapIndex >= newOrder.length) {
+      return; // Cannot move outside bounds
+    }
+
+    // Swap items
+    newOrder[index] = newOrder[swapIndex];
+    newOrder[swapIndex] = item;
+
+    setLocalDomainOrder(newOrder);
+    setConfigDirty(true); // Mark config as changed
+  };
+
+  // Handler for saving the reordered domains
+  const handleSaveDomainOrder = async () => {
+    if (!configDirty) return; // No changes to save
+    // Call the generic update function
+    const success = await updateConfigOnBackend({ domainOrder: localDomainOrder });
+    // Note: configDirty flag is reset inside updateConfigOnBackend on success
+  };
+
+  // Determine combined loading state for disabling forms
+  const isBusy = isLoadingMissions || isGenerating || isLoadingConfig || isUpdatingConfig;
 
   return (
     <div className="App">
       <header className="App-header">
         <h1>Digital Thread Navigator</h1>
       </header>
+      
+      {/* --- Settings Display --- */} 
+      <section className="settings-panel">
+         <h2>Configuration Settings</h2>
+         {isLoadingConfig && <p>Loading configuration...</p>}
+         {!isLoadingConfig && appConfig && (
+            <div className="config-details">
+                <div className="config-domain-order">
+                    <strong>Domain Order:</strong>
+                    <ol className="domain-order-list">
+                      {localDomainOrder.map((domain, index) => (
+                        <li key={domain}> 
+                           <span>{domain}</span>
+                           <div className="order-buttons">
+                              <button 
+                                 onClick={() => moveDomain(index, -1)} 
+                                 disabled={index === 0 || isUpdatingConfig}
+                                 title="Move Up"
+                              >
+                                 &uarr; {/* Up arrow */}
+                              </button>
+                              <button 
+                                 onClick={() => moveDomain(index, 1)} 
+                                 disabled={index === localDomainOrder.length - 1 || isUpdatingConfig}
+                                 title="Move Down"
+                              >
+                                 &darr; {/* Down arrow */}
+                              </button>
+                           </div>
+                        </li>
+                      ))}
+                    </ol>
+                    {configDirty && (
+                       <button 
+                          onClick={handleSaveDomainOrder} 
+                          disabled={isUpdatingConfig} 
+                          className="save-order-button"
+                       >
+                          {isUpdatingConfig ? 'Saving Order...' : 'Save Domain Order'}
+                       </button>
+                    )}
+                </div>
+                
+                <div className="config-toggle">
+                   <label htmlFor="adjacent-toggle">Allow Only Adjacent Connections:</label>
+                   <input 
+                     type="checkbox" 
+                     id="adjacent-toggle"
+                     checked={appConfig.allowOnlyAdjacentConnections || false}
+                     onChange={handleToggleAdjacentConnections}
+                     disabled={isBusy}
+                   />
+                   <span>{isUpdatingConfig && !configDirty ? '(Updating...)' : ''}</span>
+                </div>
+            </div>
+         )}
+         {!isLoadingConfig && !appConfig && <p>Could not load configuration.</p>} 
+         {error && <p className="error" style={{marginTop: '10px'}}>Error: {error}</p>}
+      </section>
+      
       <main>
-        <section className="domain-column">
-          <h2>Missions</h2>
-          
-          {/* === Add Mission Form === */} 
-          <form onSubmit={handleAddMission} className="add-item-form">
-             <h3>Add New Mission</h3>
-             <div>
-                <label htmlFor="mission-title">Title:</label>
-                <input 
-                  type="text"
-                  id="mission-title"
-                  value={newMissionTitle}
-                  onChange={(e) => setNewMissionTitle(e.target.value)}
-                  required
-                  placeholder="Enter mission title"
-                  disabled={isLoading || isGenerating}
-                />
-             </div>
-             <div>
-                <label htmlFor="mission-desc">Description:</label>
-                <textarea
-                  id="mission-desc"
-                  value={newMissionDescription}
-                  onChange={(e) => setNewMissionDescription(e.target.value)}
-                  placeholder="(Optional) Enter description"
-                  disabled={isLoading || isGenerating}
-                />
-             </div>
-             <button type="submit" disabled={isLoading || isGenerating}>
-               {isLoading ? 'Adding...' : 'Add Mission'}
-             </button>
-          </form>
+        {localDomainOrder.map(domainName => {
+           if (domainName === 'Mission') {
+               return (
+                   <section key={domainName} className="domain-column">
+                    <h2>{domainName}</h2>
+                    
+                    <form onSubmit={handleAddMission} className="add-item-form">
+                        <h3>Add New {domainName}</h3>
+                        <div>
+                            <label htmlFor={`${domainName}-title`}>Title:</label>
+                            <input 
+                                type="text"
+                                id={`${domainName}-title`}
+                                value={newMissionTitle}
+                                onChange={(e) => setNewMissionTitle(e.target.value)}
+                                required
+                                placeholder={`Enter ${domainName} title`}
+                                disabled={isBusy}
+                            />
+                         </div>
+                         <div>
+                            <label htmlFor={`${domainName}-desc`}>Description:</label>
+                            <textarea
+                                id={`${domainName}-desc`}
+                                value={newMissionDescription}
+                                onChange={(e) => setNewMissionDescription(e.target.value)}
+                                placeholder={`(Optional) Enter description`}
+                                disabled={isBusy}
+                            />
+                         </div>
+                         <button type="submit" disabled={isBusy}>
+                             {isLoadingMissions ? 'Adding...' : `Add ${domainName}`}
+                         </button>
+                    </form>
 
-          {/* === Bulk Generate Form === */} 
-          <form onSubmit={handleBulkGenerate} className="add-item-form bulk-generate-form">
-            <h3>Bulk Generate Missions</h3>
-            <div>
-              <label htmlFor="num-missions">Number of Top-Level Missions:</label>
-              <input 
-                type="number"
-                id="num-missions"
-                value={numMissions}
-                onChange={(e) => setNumMissions(parseInt(e.target.value, 10) || 0)}
-                min="1"
-                required
-                disabled={isLoading || isGenerating}
-              />
-            </div>
-            <div>
-              <label htmlFor="min-subs">Min Sub-missions per Mission:</label>
-              <input 
-                type="number"
-                id="min-subs"
-                value={minSubMissions}
-                onChange={(e) => setMinSubMissions(parseInt(e.target.value, 10) || 0)}
-                min="0"
-                required
-                disabled={isLoading || isGenerating}
-              />
-            </div>
-            <div>
-              <label htmlFor="max-subs">Max Sub-missions per Mission:</label>
-              <input 
-                type="number"
-                id="max-subs"
-                value={maxSubMissions}
-                onChange={(e) => setMaxSubMissions(parseInt(e.target.value, 10) || 0)}
-                min={minSubMissions} // Max cannot be less than min
-                required
-                disabled={isLoading || isGenerating}
-              />
-            </div>
-            <button type="submit" disabled={isLoading || isGenerating}>
-              {isGenerating ? 'Generating...' : 'Generate Missions'}
-            </button>
-          </form>
+                    <form onSubmit={handleBulkGenerate} className="add-item-form bulk-generate-form">
+                        <h3>Bulk Generate {domainName}s</h3>
+                        <div>
+                           <label htmlFor="num-missions">Number of Top-Level {domainName}s:</label>
+                           <input 
+                               type="number"
+                               id="num-missions"
+                               value={numMissions}
+                               onChange={(e) => setNumMissions(parseInt(e.target.value, 10) || 0)}
+                               min="1"
+                               required
+                               disabled={isBusy}
+                           />
+                        </div>
+                        <div>
+                           <label htmlFor="min-subs">Min Sub-{domainName}s per {domainName}:</label>
+                           <input 
+                               type="number"
+                               id="min-subs"
+                               value={minSubMissions}
+                               onChange={(e) => setMinSubMissions(parseInt(e.target.value, 10) || 0)}
+                               min="0"
+                               required
+                               disabled={isBusy}
+                            />
+                         </div>
+                         <div>
+                             <label htmlFor="max-subs">Max Sub-{domainName}s per {domainName}:</label>
+                             <input 
+                                 type="number"
+                                 id="max-subs"
+                                 value={maxSubMissions}
+                                 onChange={(e) => setMaxSubMissions(parseInt(e.target.value, 10) || 0)}
+                                 min={minSubMissions} 
+                                 required
+                                 disabled={isBusy}
+                             />
+                          </div>
+                          <button type="submit" disabled={isBusy}>
+                              {isGenerating ? 'Generating...' : `Generate ${domainName}s`}
+                          </button>
+                    </form>
 
-          
-          {/* === Display Missions === */} 
-          <div className="item-list">
-            {isLoading && !isGenerating && <p>Loading missions...</p>} 
-            {isGenerating && <p>Generating missions...</p>} 
-            {error && <p className="error">Error: {error}</p>}
-            {!isLoading && !isGenerating && !error && missions.length === 0 && (
-              <p>No missions found. Add one or generate some!</p>
-            )}
-            {!isLoading && !isGenerating && !error && missions.length > 0 && (
-              <ul>
-                {missions.map((mission) => (
-                  <li key={mission.id} className="item-card">
-                    <strong>{mission.id}: {mission.title}</strong>
-                    {mission.description && <p>{mission.description}</p>}
-                    {/* TODO: Add indicator for sub-missions later */}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
-
-        {/* Add columns for other domains (Scenario, Requirements, etc.) later */} 
+                    <div className="item-list">
+                      {(isLoadingMissions || isGenerating) && <p>Loading/Generating {domainName}s...</p>} 
+                      {!isLoadingMissions && !isGenerating && !error && missions.length === 0 && (
+                        <p>No {domainName}s found. Add one or generate some!</p>
+                      )}
+                      {!isLoadingMissions && !isGenerating && !error && missions.length > 0 && (
+                        <ul>
+                          {missions.map((mission) => (
+                            <li key={mission.id} className="item-card">
+                              <strong>{mission.id}: {mission.title}</strong>
+                              {mission.description && <p>{mission.description}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                   </section>
+               );
+           } else {
+              return (
+                 <section key={domainName} className="domain-column placeholder-column">
+                   <h2>{domainName}</h2>
+                   <p>(Content for {domainName} domain)</p>
+                 </section>
+              );
+           }
+        })}
       </main>
     </div>
   );

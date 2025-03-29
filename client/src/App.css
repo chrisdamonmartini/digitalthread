@@ -29,7 +29,6 @@ body {
   background-color: #282c34;
   padding: 20px;
   color: white;
-  margin-bottom: 20px;
 }
 
 .App-link {
@@ -180,3 +179,119 @@ main {
 
 /* Loading Placeholder Style (optional) */
 /* You can add more specific loading indicators */
+
+/* Settings Panel Styles */
+.settings-panel {
+  background-color: #e9ecef; /* Light grey background */
+  padding: 15px 20px;
+  margin-bottom: 20px; /* Add margin below settings */
+  text-align: left;
+  border-bottom: 1px solid #ccc;
+}
+
+.settings-panel h2 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1.2em;
+  color: #333;
+}
+
+.config-details div {
+  margin-bottom: 8px;
+}
+
+/* Specific styles for domain order section */
+.config-domain-order {
+    border: 1px solid #ccc;
+    padding: 10px;
+    background-color: #fff;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.domain-order-list {
+    list-style: decimal;
+    padding-left: 25px; /* Indent the numbers */
+    margin-top: 5px;
+    margin-bottom: 15px;
+}
+
+.domain-order-list li {
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between; /* Push buttons to the right */
+    align-items: center;
+}
+
+.domain-order-list li span {
+    flex-grow: 1; /* Allow text to take available space */
+    margin-right: 10px;
+}
+
+.order-buttons button {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+    margin-left: 5px;
+    padding: 2px 6px;
+    font-size: 1.1em; /* Make arrows slightly bigger */
+    line-height: 1;
+    color: #555;
+}
+
+.order-buttons button:hover:not(:disabled) {
+    background-color: #eee;
+    border-color: #aaa;
+}
+
+.order-buttons button:disabled {
+    color: #ccc;
+    cursor: not-allowed;
+}
+
+.save-order-button {
+    background-color: #5cb85c; /* Green */
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 5px; /* Space above save button */
+}
+
+.save-order-button:hover:not(:disabled) {
+    background-color: #4cae4c;
+}
+
+.save-order-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.config-details strong {
+  margin-right: 8px;
+}
+
+.config-toggle label {
+  margin-right: 10px;
+}
+
+.config-toggle input[type="checkbox"] {
+  margin-right: 5px;
+  vertical-align: middle; /* Align checkbox with label */
+}
+
+.config-toggle span {
+  font-style: italic;
+  color: #666;
+  font-size: 0.9em;
+}
+
+/* Placeholder column style */
+.placeholder-column {
+  background-color: #f9f9f9;
+  border-style: dashed;
+  color: #999;
+}

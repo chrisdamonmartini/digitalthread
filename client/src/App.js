@@ -510,8 +510,8 @@ function FlowView() {
           draggable: false,
           selectable: false,
           position: { 
-            x: parentPadding + filterBoxWidth + 4, 
-            y: filterBoxY + (filterBoxHeight - 18) / 2 // Center vertically with the filter box
+            x: parentPadding + filterBoxWidth + 10, // Moved further right (from +4 to +10)
+            y: filterBoxY + ((filterBoxHeight - 18) / 2) // Better center alignment with filter box
           },
           data: { label: null },
           style: {

@@ -382,7 +382,7 @@ function FlowView() {
         }
         
         // Define filter box variables
-        const filterBoxHeight = 38; // Increase height by about 40% (from 28 to 38)
+        const filterBoxHeight = 48; // Increase height by 25% (from 38 to 48)
         const filterBoxPadding = 8;
         const spaceBelowFilter = 10;
         const searchIconSize = 16;
@@ -479,7 +479,7 @@ function FlowView() {
         // --- 4. Add Filter Input Box ---
         // Use filterBoxY already defined above
         
-        // Add filter input box - position it first, then the search icon to its right
+        // Add filter input box
         newNodes.push({
           id: `filter-${parentNodeId}`,
           parentNode: parentNodeId,
@@ -503,13 +503,16 @@ function FlowView() {
           }
         });
         
-        // Add search icon for the filter box - now on the right side of the input
+        // Add search icon for the filter box - now positioned to align with the middle of the filter box
         newNodes.push({
           id: `search-icon-${parentNodeId}`,
           parentNode: parentNodeId,
           draggable: false,
           selectable: false,
-          position: { x: parentPadding + filterBoxWidth + 4, y: filterBoxY + (filterBoxHeight - 18)/2 }, // Center vertically with taller input
+          position: { 
+            x: parentPadding + filterBoxWidth + 4, 
+            y: filterBoxY + (filterBoxHeight - 18) / 2 // Center vertically with the filter box
+          },
           data: { label: null },
           style: {
             width: searchIconSize,

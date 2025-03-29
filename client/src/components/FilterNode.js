@@ -40,9 +40,9 @@ function FilterNode({ data, isConnectable }) {
         style={{ 
           width: '100%', 
           height: '100%', 
-          padding: '8px 10px',
+          padding: '12px 10px',
           boxSizing: 'border-box',
-          fontSize: '0.9em',
+          fontSize: '0.95em',
           cursor: 'text'
         }}
       />

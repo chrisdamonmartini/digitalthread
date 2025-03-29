@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import IconPreview from './IconPreview';
 import './IconSelector.css';
 
@@ -35,12 +35,39 @@ const IconSelector = ({ value, onChange, onUpload }) => {
   const [selectedTab, setSelectedTab] = useState('presets');
   const [customIconUrl, setCustomIconUrl] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: false,
+    right: false
+  });
+  
+  const selectorRef = useRef(null);
+  const dropdownRef = useRef(null);
   
   // Filter icons based on search term
   const filteredIcons = ALL_PRESET_ICONS.filter(icon => 
     icon.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     icon.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  
+  // Calculate proper dropdown position when opened
+  useEffect(() => {
+    if (isOpen && selectorRef.current && dropdownRef.current) {
+      const selectorRect = selectorRef.current.getBoundingClientRect();
+      const dropdownRect = dropdownRef.current.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      const windowWidth = window.innerWidth;
+      
+      // Check if dropdown would go off bottom of screen
+      const bottomOverflow = (selectorRect.bottom + dropdownRect.height) > windowHeight;
+      // Check if dropdown would go off right of screen
+      const rightOverflow = (selectorRect.left + dropdownRect.width) > windowWidth;
+      
+      setDropdownPosition({
+        top: bottomOverflow,
+        right: rightOverflow
+      });
+    }
+  }, [isOpen]);
   
   // Handle icon file upload
   const handleIconUpload = (event) => {
@@ -78,8 +105,7 @@ const IconSelector = ({ value, onChange, onUpload }) => {
   // Close the selector when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      const selector = document.getElementById('icon-selector');
-      if (selector && !selector.contains(event.target)) {
+      if (selectorRef.current && !selectorRef.current.contains(event.target)) {
         setIsOpen(false);
       }
     };
@@ -92,9 +118,17 @@ const IconSelector = ({ value, onChange, onUpload }) => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
+
+  // Get dropdown position classes
+  const getDropdownClasses = () => {
+    let classes = 'icon-selector-dropdown';
+    if (dropdownPosition.top) classes += ' position-top';
+    if (dropdownPosition.right) classes += ' position-right';
+    return classes;
+  };
   
   return (
-    <div className="icon-selector-container">
+    <div className="icon-selector-container" ref={selectorRef}>
       <div className="icon-selector-trigger" onClick={() => setIsOpen(!isOpen)}>
         <div className="selected-icon">
           {value?.type === 'custom' ? (
@@ -112,7 +146,7 @@ const IconSelector = ({ value, onChange, onUpload }) => {
       </div>
       
       {isOpen && (
-        <div className="icon-selector-dropdown" id="icon-selector">
+        <div className={getDropdownClasses()} ref={dropdownRef}>
           <div className="icon-selector-tabs">
             <button 
               className={`icon-selector-tab ${selectedTab === 'presets' ? 'active' : ''}`}

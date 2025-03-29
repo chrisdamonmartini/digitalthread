@@ -11,11 +11,13 @@
   border-radius: 4px;
   background-color: white;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
+  height: 36px;
 }
 
 .icon-selector-trigger:hover {
   border-color: #2196F3;
+  background-color: #f5f5f5;
 }
 
 .selected-icon {
@@ -51,6 +53,20 @@
   background-color: white;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   z-index: 1000;
+  transform-origin: top left;
+  transform: translateY(0);
+}
+
+.icon-selector-dropdown.position-top {
+  top: auto;
+  bottom: calc(100% + 4px);
+  transform-origin: bottom left;
+}
+
+.icon-selector-dropdown.position-right {
+  left: auto;
+  right: 0;
+  transform-origin: top right;
 }
 
 .icon-selector-tabs {
@@ -91,7 +107,7 @@
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   padding: 15px;
-  max-height: 300px;
+  max-height: 250px;
   overflow-y: auto;
 }
 

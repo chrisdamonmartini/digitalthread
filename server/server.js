@@ -23,6 +23,29 @@ app.use(express.json()); // To parse JSON request bodies
 const missionRoutes = require('./routes/missionRoutes');
 app.use('/api/missions', missionRoutes);
 
+// Import and use config routes
+const configRoutes = require('./routes/configRoutes');
+app.use('/api/config', configRoutes);
+
+// Import and use scenario routes
+const scenarioRoutes = require('./routes/scenarioRoutes');
+app.use('/api/scenarios', scenarioRoutes);
+
+// Import and use relationship routes
+const relationshipRoutes = require('./routes/relationshipRoutes');
+app.use('/api/relationships', relationshipRoutes);
+
+// Import and use requirement routes
+const requirementRoutes = require('./routes/requirementRoutes');
+app.use('/api/requirements', requirementRoutes);
+
+// Import and use parameter routes
+const parameterRoutes = require('./routes/parameterRoutes');
+app.use('/api/parameters', parameterRoutes);
+
+// Import and use function routes
+const functionRoutes = require('./routes/functionRoutes');
+app.use('/api/functions', functionRoutes); // Use plural path
 
 app.get('/', (req, res) => {
   res.send('Digital Thread Navigator Backend is running!');

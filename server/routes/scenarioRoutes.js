@@ -86,23 +86,24 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   const session = driver.session({ database: 'neo4j' });
   try {
-    // Fetch Scenario nodes, incoming Mission IDs, and outgoing Requirement IDs
     const result = await session.run(
       `MATCH (s:Scenario)
-       OPTIONAL MATCH (m:Mission)-[:DRIVES]->(s) // Incoming from Mission
-       OPTIONAL MATCH (s)-[:REQUIRES]->(r:Requirement) // Outgoing to Requirement
+       OPTIONAL MATCH (m:Mission)-[:DRIVES]->(s)
+       OPTIONAL MATCH (s)-[:REQUIRES]->(r:Requirement)
+       OPTIONAL MATCH (s)-[:HAS_CHILD]->(child:Scenario) // Find direct children
        RETURN s, 
               collect(DISTINCT m.id) AS drivingMissionIds, 
-              collect(DISTINCT r.id) AS requiredRequirementIds
+              collect(DISTINCT r.id) AS requiredRequirementIds,
+              collect(DISTINCT child.id) AS childScenarioIds // Add child IDs
        ORDER BY s.id`
     );
     const scenarios = result.records.map(record => ({
         ...record.get('s').properties,
         drivingMissionIds: record.get('drivingMissionIds'),
-        requiredRequirementIds: record.get('requiredRequirementIds')
+        requiredRequirementIds: record.get('requiredRequirementIds'),
+        childScenarioIds: record.get('childScenarioIds') // Include in response
     }));
     res.status(200).json(scenarios);
-
   } catch (error) {
     console.error('Error retrieving scenarios:', error);
     res.status(500).json({ error: 'Failed to retrieve scenarios', details: error.message });

@@ -1,0 +1,75 @@
+/* Remove previous header styles */
+
+.app-header-container {
+    /* No background needed here, sections handle it */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Keep shadow on container */
+}
+
+.header-top-section {
+    background-color: #5a879d; /* Lighter blue from image */
+    height: 35px; /* Approximate height */
+    /* Add padding or content alignment if needed */
+}
+
+.app-header-themed-new {
+    background-color: #0f3151; /* Darker blue from image */
+    color: white;
+    padding: 8px 20px; /* Adjusted padding for this section */
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-left {
+    /* For potential icons/nav later */
+}
+
+.header-title-new {
+    margin: 0;
+    font-size: 1.1em; /* Smaller font size */
+    font-weight: 500;
+    color: white;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+}
+
+.settings-link-new {
+    color: white;
+    text-decoration: none;
+    font-weight: 400; /* Normal weight */
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+.settings-link-new:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+/* Updated logo placeholder style */
+.logo-placeholder-siemens {
+    font-weight: 600; /* Semi-bold */
+    color: #b4c5d0; /* Lighter greyish color */
+    font-size: 0.9em;
+    letter-spacing: 1px;
+}
+
+/* Placeholder - Replace with actual logo styling */
+.logo-placeholder {
+    font-weight: bold;
+    color: white; /* White logo text */
+    font-size: 1.2em; 
+    letter-spacing: 1px; /* Add some letter spacing */
+    /* Optional: Add border for visual separation if needed */
+    /* border: 1px solid rgba(255, 255, 255, 0.5); */
+    /* padding: 2px 8px; */
+}
+
+/* Remove the border style */
+/* .header-border { ... } */ 

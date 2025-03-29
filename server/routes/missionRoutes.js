@@ -10,14 +10,18 @@ router.get('/', async (req, res) => {
     const result = await session.run(
       `MATCH (m:Mission)
        OPTIONAL MATCH (m)-[:DRIVES]->(s:Scenario) // Find driven scenarios
-       RETURN m, collect(s.id) AS drivenScenarioIds // Return mission and list of driven scenario IDs
+       OPTIONAL MATCH (m)-[:HAS_CHILD]->(child:Mission) // Find direct children
+       RETURN m, 
+              collect(DISTINCT s.id) AS drivenScenarioIds, 
+              collect(DISTINCT child.id) AS childMissionIds // Add child IDs
        ORDER BY m.id`
     );
 
     // Extract properties and relationship info
     const missions = result.records.map(record => ({
         ...record.get('m').properties, // Spread mission properties
-        drivenScenarioIds: record.get('drivenScenarioIds') // Add the array of scenario IDs
+        drivenScenarioIds: record.get('drivenScenarioIds'), // Add the array of scenario IDs
+        childMissionIds: record.get('childMissionIds') // Include in response
     }));
 
     res.status(200).json(missions);

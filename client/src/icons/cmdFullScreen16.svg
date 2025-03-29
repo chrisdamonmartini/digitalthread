@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <polygon points="5 1 5 0 0 0 0 5 1 5 1 1.6987 5.1465 5.8452 5.8535 5.1382 1.7153 1 5 1" class="aw-theme-iconOutline" fill="#464646" stroke-width="0"/>
+  <polygon points="11 0 11 1 14.2847 1 10.1367 5.1484 10.8438 5.8555 15 1.6988 15 5 16 5 16 0 11 0" class="aw-theme-iconOutline" fill="#464646" stroke-width="0"/>
+  <path d="m15,14.2852l-4.1465-4.1465-.707.707,4.1543,4.1543h-3.3008v1h5v-5h-1v3.2852Zm-.0078.7148l.0078-.0078v.0078h-.0078Z" class="aw-theme-iconOutline" fill="#464646" stroke-width="0"/>
+  <path d="m5.1465,10.1387L1,14.2852v-3.2852H0v5h5v-1H1.6992l4.1543-4.1543-.707-.707ZM1,15v-.0078l.0078.0078h-.0078Z" class="aw-theme-iconOutline" fill="#464646" stroke-width="0"/>
+</svg>

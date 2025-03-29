@@ -90,17 +90,20 @@ router.get('/', async (req, res) => {
   try {
     const result = await session.run(
       `MATCH (f:Function)
-       OPTIONAL MATCH (p:Parameter)-[:INPUT_TO]->(f) // Incoming from Parameter
-       // OPTIONAL MATCH (f)-[:OUTPUT_OF]->(l:LogicalElement) // Example: For next link
+       OPTIONAL MATCH (p:Parameter)-[:INPUT_TO]->(f)
+       OPTIONAL MATCH (f)-[:HAS_CHILD]->(child:Function) // Find children
+       // OPTIONAL MATCH (f)-[:OUTPUT_OF]->(l:LogicalElement) 
        RETURN f, 
-              collect(DISTINCT p.id) AS inputParameterIds 
-              // , collect(DISTINCT l.id) AS outputToLogicalIds // Example
+              collect(DISTINCT p.id) AS inputParameterIds, 
+              collect(DISTINCT child.id) AS childFunctionIds // Add child IDs
+              // , collect(DISTINCT l.id) AS outputToLogicalIds 
        ORDER BY f.id` 
     );
     const functions = result.records.map(record => ({
       ...record.get('f').properties,
-      inputParameterIds: record.get('inputParameterIds')
-      // outputToLogicalIds: record.get('outputToLogicalIds') // Example
+      inputParameterIds: record.get('inputParameterIds'),
+      childFunctionIds: record.get('childFunctionIds') // Include in response
+      // outputToLogicalIds: record.get('outputToLogicalIds') 
     }));
     res.status(200).json(functions);
   } catch (error) {

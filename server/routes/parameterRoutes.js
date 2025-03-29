@@ -95,15 +95,18 @@ router.get('/', async (req, res) => {
       `MATCH (p:Parameter)
        OPTIONAL MATCH (r:Requirement)-[:DEFINES]->(p)
        OPTIONAL MATCH (p)-[:INPUT_TO]->(f:Function)
+       OPTIONAL MATCH (p)-[:HAS_CHILD]->(child:Parameter) // Find children
        RETURN p, 
               collect(DISTINCT r.id) AS definingRequirementIds, 
-              collect(DISTINCT f.id) AS inputToFunctionIds
+              collect(DISTINCT f.id) AS inputToFunctionIds,
+              collect(DISTINCT child.id) AS childParameterIds // Add child IDs
        ORDER BY p.id` 
     );
     const parameters = result.records.map(record => ({
       ...record.get('p').properties,
       definingRequirementIds: record.get('definingRequirementIds'),
-      inputToFunctionIds: record.get('inputToFunctionIds')
+      inputToFunctionIds: record.get('inputToFunctionIds'),
+      childParameterIds: record.get('childParameterIds') // Include in response
     }));
     res.status(200).json(parameters);
   } catch (error) {

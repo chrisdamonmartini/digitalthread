@@ -1,42 +1,78 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import './App.css';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import ReactFlow, { ReactFlowProvider, Background, Controls, useNodesState, useEdgesState, MarkerType } from 'reactflow'; // Import React Flow components
+import 'reactflow/dist/style.css'; // Import default styles
 
-// Define the backend API base URL
-// In development, React runs on 3000, backend on 3001
-// We need to proxy requests or use the full URL.
-// Using the full URL is simpler for now.
+import './App.css';
+import CustomNode from './components/CustomNode'; // Import CustomNode
+import ControlPanel from './components/ControlPanel'; // Import ControlPanel
+
 const API_URL = 'http://localhost:3001/api';
 
-function App() {
-  // State for Missions
+// Helper to determine the relationship type 
+function getRelationshipType(sourceDomain, targetDomain) {
+    if (sourceDomain === 'Mission' && targetDomain === 'Scenario') return 'DRIVES';
+    if (sourceDomain === 'Scenario' && targetDomain === 'Requirements') return 'REQUIRES';
+    if (sourceDomain === 'Requirements' && targetDomain === 'Parameter') return 'DEFINES'; // Added
+    if (sourceDomain === 'Parameter' && targetDomain === 'Functions') return 'INPUT_TO'; // Added
+    // Add other relationship types as domains are added
+    console.warn(`No relationship type defined for ${sourceDomain} -> ${targetDomain}`);
+    return 'RELATES_TO'; 
+}
+
+function AppContent() { 
+  // --- State --- 
   const [missions, setMissions] = useState([]);
-  const [isLoadingMissions, setIsLoadingMissions] = useState(false);
+  const [isLoadingMissions, setIsLoadingMissions] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false); 
-  const [newMissionTitle, setNewMissionTitle] = useState('');
-  const [newMissionDescription, setNewMissionDescription] = useState('');
-  const [numMissions, setNumMissions] = useState(10);
-  const [minSubMissions, setMinSubMissions] = useState(4);
-  const [maxSubMissions, setMaxSubMissions] = useState(8);
+  const [scenarios, setScenarios] = useState([]);
+  const [isLoadingScenarios, setIsLoadingScenarios] = useState(true);
+  const [requirements, setRequirements] = useState([]);
+  const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
+  const [parameters, setParameters] = useState([]);
+  const [isLoadingParameters, setIsLoadingParameters] = useState(true);
+  const [functions, setFunctions] = useState([]);
+  const [isLoadingFunctions, setIsLoadingFunctions] = useState(true);
   
-  // State for Configuration
-  const [appConfig, setAppConfig] = useState(null);
-  const [localDomainOrder, setLocalDomainOrder] = useState([]);
+  // State for individual Add forms - MOVED to ControlPanel or passed differently
+  // const [newMissionTitle, setNewMissionTitle] = useState('');
+  // ... etc for all domains ...
+  
+  // Shared state for Bulk Generate form
+  const [numMissions, setNumMissions] = useState(10); 
+  const [minSubMissions, setMinSubMissions] = useState(4); 
+  const [maxSubMissions, setMaxSubMissions] = useState(8); 
+
+  // Config, Linking, Messages State
+  const [appConfig, setAppConfig] = useState(null); 
+  const [localDomainOrder, setLocalDomainOrder] = useState([]); 
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
-  const [configDirty, setConfigDirty] = useState(false);
-
-  // General Error State
+  const [configDirty, setConfigDirty] = useState(false); 
+  const [linkingState, setLinkingState] = useState({ fromId: null, fromDomain: null });
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+  const [nodeDisplayMode, setNodeDisplayMode] = useState('titleOnly');
 
-  // --- Fetch Config --- 
+  // React Flow State
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
+
+  // ... (useEffect for successMessage) ...
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
+  // --- Data Fetching --- 
   const fetchConfig = useCallback(async () => {
     setIsLoadingConfig(true);
     setError(null);
     try {
       const response = await fetch(`${API_URL}/config`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setAppConfig(data);
       setLocalDomainOrder(data.domainOrder || []);
@@ -44,354 +80,568 @@ function App() {
     } catch (e) {
       console.error("Error fetching config:", e);
       setError('Failed to load application configuration.');
-      setAppConfig({});
+      setAppConfig({}); 
       setLocalDomainOrder([]);
     } finally {
       setIsLoadingConfig(false);
     }
-  }, []);
+  }, []); // Empty dependency array
 
-  // --- Fetch Missions --- 
   const fetchMissions = useCallback(async () => {
     setIsLoadingMissions(true);
     setError(null);
     try {
       const response = await fetch(`${API_URL}/missions`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setMissions(data);
     } catch (e) {
       console.error("Error fetching missions:", e);
-      setError('Failed to load missions. Is the backend server running?');
+      setError('Failed to load missions.');
     } finally {
       setIsLoadingMissions(false);
     }
-  }, []); 
+  }, []); // Empty dependency array
 
-  // Fetch initial data (config and missions)
-  useEffect(() => {
-    fetchConfig();
-    fetchMissions();
-  }, [fetchConfig, fetchMissions]); 
-
-  // --- Add Mission --- 
-  const handleAddMission = async (event) => {
-    event.preventDefault(); 
-    if (!newMissionTitle.trim()) {
-      alert('Please enter a mission title.');
-      return;
-    }
-    setIsLoadingMissions(true); 
+  const fetchScenarios = useCallback(async () => {
+    setIsLoadingScenarios(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/missions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          title: newMissionTitle,
-          description: newMissionDescription 
-        }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})); 
-        throw new Error(`HTTP error! status: ${response.status} - ${errorData.error || 'Unknown error'}`);
-      }
-      setNewMissionTitle('');
-      setNewMissionDescription('');
-      await fetchMissions(); 
+      const response = await fetch(`${API_URL}/scenarios`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      setScenarios(data);
     } catch (e) {
-      console.error("Error adding mission:", e);
-      setError(`Failed to add mission: ${e.message}`);
+      console.error("Error fetching scenarios:", e);
+      setError('Failed to load scenarios.');
     } finally {
-      setIsLoadingMissions(false); 
+      setIsLoadingScenarios(false);
     }
-  };
+  }, []); // Empty dependency array
 
-  // --- Bulk Generate Missions --- 
-  const handleBulkGenerate = async (event) => {
+  const fetchRequirements = useCallback(async () => {
+    setIsLoadingRequirements(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_URL}/requirements`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      setRequirements(data);
+    } catch (e) {
+      console.error("Error fetching requirements:", e);
+      setError('Failed to load requirements.');
+    } finally {
+      setIsLoadingRequirements(false);
+    }
+  }, []); // Empty dependency array
+
+  // --- Fetch Parameters --- 
+  const fetchParameters = useCallback(async () => {
+    setIsLoadingParameters(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_URL}/parameters`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      setParameters(data);
+    } catch (e) {
+      console.error("Error fetching parameters:", e);
+      setError('Failed to load parameters.');
+    } finally {
+      setIsLoadingParameters(false);
+    }
+  }, []); // Empty dependency array
+
+  // --- Fetch Functions --- 
+  const fetchFunctions = useCallback(async () => {
+    setIsLoadingFunctions(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_URL}/functions`); // Use plural path
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      setFunctions(data);
+    } catch (e) {
+      console.error("Error fetching functions:", e);
+      setError('Failed to load functions.');
+    } finally {
+      setIsLoadingFunctions(false);
+    }
+  }, []);
+
+  // Fetch initial data
+  useEffect(() => {
+    // Fetch all data initially
+    Promise.all([
+       fetchConfig(),
+       fetchMissions(),
+       fetchScenarios(),
+       fetchRequirements(),
+       fetchParameters(),
+       fetchFunctions()
+    ]).catch(err => {
+       console.error("Error during initial data fetch:", err);
+       // Handle collective error if needed
+    });
+  }, []); // Empty array: Run only once on mount
+
+  // --- useEffect to Calculate Nodes and Edges --- 
+  useEffect(() => {
+    if (isLoadingConfig || isLoadingMissions || isLoadingScenarios || isLoadingRequirements || isLoadingParameters || isLoadingFunctions || !appConfig) return;
+
+    console.log("Calculating nodes and edges with styled Parent Grouping...");
+
+    const newNodes = [];
+    const newEdges = [];
+    // Layout parameters
+    const columnStartX = 50;    
+    const parentPadding = 20; 
+    const parentTitleHeight = 30; // Reduced height for title area inside parent
+    const columnWidth = 300;    
+    const nodeWidth = columnWidth - (parentPadding * 2); 
+    const columnGap = 60;       
+    const nodeHeight = 60;      // Height of item nodes 
+    const nodeGapY = 0;         // No gap between items
+    const indentX = 30;         
+    const topLevelGapY = 0;    // No gap between top-level items
+    
+    const itemMaps = {
+        Mission: new Map(missions.map(item => [item.id, item])),
+        Scenario: new Map(scenarios.map(item => [item.id, item])),
+        Requirements: new Map(requirements.map(item => [item.id, item])),
+        Parameter: new Map(parameters.map(item => [item.id, item])),
+        Functions: new Map(functions.map(item => [item.id, item])),
+    };
+    const childIdSets = {
+        Mission: new Set(missions.flatMap(item => item.childMissionIds || [])),
+        Scenario: new Set(scenarios.flatMap(item => item.childScenarioIds || [])),
+        Requirements: new Set(requirements.flatMap(item => item.childRequirementIds || [])),
+        Parameter: new Set(parameters.flatMap(item => item.childParameterIds || [])),
+        Functions: new Set(functions.flatMap(item => item.childFunctionIds || [])),
+    };
+
+    let currentColumnX = columnStartX;
+
+    localDomainOrder.forEach((domainName) => {
+        const itemMap = itemMaps[domainName];
+        const childIdSet = childIdSets[domainName];
+        if (!itemMap) return; 
+
+        // --- Calculate height needed for items --- 
+        let totalContentHeight = 0;
+        const topLevelItems = Array.from(itemMap.values()).filter(item => !childIdSet?.has(item.id));
+        const calculateBranchHeight = (itemId) => {
+            const item = itemMap.get(itemId);
+            if (!item) return 0;
+            
+            let currentBranchHeight = nodeHeight; // Start with current node height
+            const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
+            const childIds = item[childIdKey] || [];
+            
+            childIds.forEach(childId => {
+                currentBranchHeight += calculateBranchHeight(childId); // Add child height (nodeGapY is 0)
+            });
+            return currentBranchHeight;
+        };
+        topLevelItems.forEach(topItem => { totalContentHeight += calculateBranchHeight(topItem.id); });
+        
+        const parentHeight = parentTitleHeight + totalContentHeight + (parentPadding * 2);
+        const parentNodeId = `domain-${domainName.replace(/\s+/g, '-')}`;
+        const parentX = currentColumnX;
+        const parentY = 0; 
+
+        // --- 1. Add Parent Node --- 
+        newNodes.push({
+          id: parentNodeId,
+          type: 'group', // Can be default or group
+          position: { x: parentX, y: parentY },
+          data: { label: null }, 
+          style: { 
+              width: columnWidth, 
+              height: parentHeight,
+              backgroundColor: 'rgba(245, 245, 245, 0.8)', // Light background for container
+              border: '1px solid #ccc',
+              borderRadius: '8px',
+              // Padding is visual, children are positioned absolutely relative to parent origin
+          },
+          zIndex: 0 // Ensure parent is behind children and title
+        });
+
+        // --- 2. Add Title Node (Positioned inside parent) ---
+        newNodes.push({
+          id: `title-${parentNodeId}`,
+          parentNode: parentNodeId, // Make title part of the group
+          // extent: 'parent', // Title shouldn't be dragged anyway
+          draggable: false,
+          selectable: false,
+          position: { x: parentPadding, y: parentPadding / 2 }, // Position inside parent top
+          data: { label: domainName },
+          style: { 
+              width: nodeWidth,
+              fontWeight: 'bold', 
+              fontSize: '1.2em', 
+              color: '#333',
+              textAlign: 'center',
+              borderBottom: '1px solid #ddd', 
+              paddingBottom: '5px', 
+              backgroundColor: 'transparent', // Transparent background
+              zIndex: 1 // Above parent bg, below items
+          }
+        });
+
+        let currentRelativeY = parentTitleHeight + parentPadding; // Starting Y *inside* the parent
+
+        // --- 3. Recursive function to position CHILD nodes --- 
+        const processNodeAndChildren = (itemId, parentNodeId, relativeXBase, startY, depth) => {
+            const item = itemMap.get(itemId);
+            if (!item) return { yOffset: 0 };
+
+            const nodeX = relativeXBase + (depth * indentX); 
+            const nodeY = startY; 
+            
+            newNodes.push({
+                id: item.id,
+                parentNode: parentNodeId, // Associate with parent 
+                extent: 'parent', // Constrain to parent bounds
+                position: { x: nodeX, y: nodeY }, // Position relative to parent
+                type: 'custom',
+                data: { itemData: item, domain: domainName, displayMode: nodeDisplayMode },
+                zIndex: 2 // Ensure items are above parent and title
+            });
+
+            let cumulativeYOffset = nodeHeight; // Node's own height
+
+            const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
+            const childIds = item[childIdKey] || [];
+            if (childIds.length > 0) {
+                 childIds.forEach(childId => {
+                     const { yOffset: childBranchHeight } = processNodeAndChildren(
+                         childId, parentNodeId, relativeXBase, startY + cumulativeYOffset, depth + 1
+                     );
+                     cumulativeYOffset += childBranchHeight; // Add child height (nodeGapY is 0)
+                 });
+            }
+            return { yOffset: cumulativeYOffset };
+        };
+
+        // --- 4. Process top-level items --- 
+        topLevelItems.forEach(topItem => {
+             const { yOffset: branchHeight } = processNodeAndChildren(topItem.id, parentNodeId, parentPadding, currentRelativeY, 0);
+             currentRelativeY += branchHeight; // Move Y down
+        });
+
+        // --- 5. Calculate Inter-domain Edges (uses currentItemMap) --- 
+        const itemsInThisColumn = Array.from(itemMap.values());
+        itemsInThisColumn.forEach((item) => {
+            const sourceId = item.id;
+            let targetIds = [];
+            if (domainName === 'Mission') targetIds = item.drivenScenarioIds || [];
+            else if (domainName === 'Scenario') targetIds = item.requiredRequirementIds || [];
+            else if (domainName === 'Requirements') targetIds = item.definedParameterIds || [];
+            else if (domainName === 'Parameter') targetIds = item.inputToFunctionIds || [];
+            
+            targetIds.forEach(targetId => {
+                 const edgeType = getRelationshipType(domainName, localDomainOrder[localDomainOrder.indexOf(domainName) + 1]);
+                 newEdges.push({
+                     id: `${sourceId}-${edgeType}-${targetId}`,
+                     source: sourceId, 
+                     target: targetId, 
+                     sourceHandle: 'right-source',
+                     targetHandle: 'left-target',
+                     type: 'smoothstep', 
+                     animated: true,
+                     style: { strokeWidth: 2, stroke: '#007bff' },
+                     markerEnd: { 
+                         type: MarkerType.ArrowClosed, 
+                         width: 15, 
+                         height: 15,
+                         color: '#007bff' 
+                     },
+                     zIndex: 5 // Add zIndex to render edges above nodes
+                 });
+            });
+        });
+
+        currentColumnX += columnWidth + columnGap;
+    }); // End of localDomainOrder.forEach
+
+    console.log(`Calculated ${newNodes.length} nodes (Parents, Titles, Items).`);
+    console.log(`Calculated ${newEdges.length} edges (Inter-domain only).`);
+    setNodes(newNodes);
+    setEdges(newEdges);
+
+}, [ // Dependencies (Ensure all external variables used are listed)
+    missions, scenarios, requirements, parameters, functions,
+    localDomainOrder, appConfig, nodeDisplayMode,
+    isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
+    setNodes, setEdges
+]);
+
+  // --- Add Item Handler (Generic - To be passed to ControlPanel) ---
+  const handleAddItem = useCallback(async (event, domainName, itemData) => {
     event.preventDefault();
-    if (numMissions <= 0 || minSubMissions < 0 || maxSubMissions < minSubMissions) {
-        alert('Please enter valid numbers for generation. Max sub-missions must be >= min sub-missions.');
+    // Basic validation (can be enhanced in ControlPanel or here)
+    if (!itemData || !itemData.title?.trim()) {
+        alert(`Please enter a title for the new ${domainName}.`);
         return;
     }
-    setIsGenerating(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_URL}/missions/bulk-generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          count: numMissions,      
-          minSubs: minSubMissions, 
-          maxSubs: maxSubMissions  
-        }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP error! status: ${response.status} - ${errorData.error || 'Unknown error'}`);
-      }
-      const resultData = await response.json();
-      console.log('Bulk generation successful:', resultData.message);
-      await fetchMissions(); 
-    } catch (e) {
-      console.error("Error bulk generating missions:", e);
-      setError(`Failed to bulk generate missions: ${e.message}`);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-  
-  // --- Config Update Logic --- 
 
-  // Generic function to update config on backend
-  const updateConfigOnBackend = async (configUpdate) => {
-      setIsUpdatingConfig(true);
-      setError(null);
+    let apiPath = domainName.toLowerCase().replace(/\s+/g, '');
+    if (domainName === 'Mission') apiPath = 'missions';
+    else if (domainName === 'Scenario') apiPath = 'scenarios';
+    else if (domainName === 'Requirements') apiPath = 'requirements';
+    else if (domainName === 'Parameter') apiPath = 'parameters';
+    else if (domainName === 'Functions') apiPath = 'functions';
+    else { console.error('Unknown domain for add:', domainName); return; }
+
+    const apiUrl = `${API_URL}/${apiPath}`;
+    let setIsLoading, refreshFunc;
+    // Map domain to specific loading state setter and refresh function
+    if (domainName === 'Mission') { setIsLoading = setIsLoadingMissions; refreshFunc = fetchMissions; }
+    else if (domainName === 'Scenario') { setIsLoading = setIsLoadingScenarios; refreshFunc = fetchScenarios; }
+    else if (domainName === 'Requirements') { setIsLoading = setIsLoadingRequirements; refreshFunc = fetchRequirements; }
+    else if (domainName === 'Parameter') { setIsLoading = setIsLoadingParameters; refreshFunc = fetchParameters; }
+    else if (domainName === 'Functions') { setIsLoading = setIsLoadingFunctions; refreshFunc = fetchFunctions; }
+    else { return; } // Should not happen
+
+    setIsLoading(true); setError(null);
+    try {
+        const response = await fetch(apiUrl, { 
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(itemData) // Send the data collected by ControlPanel
+        });
+        if (!response.ok) { 
+            const err = await response.json().catch(()=>{}); 
+            throw new Error(err?.error || `HTTP ${response.statusText}`); 
+        }
+        // No need to clear form state here, ControlPanel can handle that if needed
+        if (refreshFunc) await refreshFunc();
+    } catch (e) { 
+        console.error(`Err add ${domainName}:`, e);
+        setError(`Failed to add ${domainName}: ${e.message}`);
+    } finally { 
+        setIsLoading(false); 
+    }
+  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]); // Add all fetch functions
+
+  // --- Bulk Generate Handler ---
+  const handleBulkGenerate = useCallback(async (event, domainName) => {
+    // ... (logic remains largely the same, need to update API path check and refresh logic)
+    event.preventDefault();
+    if (!domainName) return;
+    
+    let apiPathSegment = domainName.toLowerCase().replace(/\s+/g, '');
+    let refreshFunction = null;
+
+    // Map domain name to API path and refresh function
+    switch(domainName) {
+        case 'Mission': 
+            apiPathSegment = 'missions'; 
+            refreshFunction = fetchMissions;
+            break;
+        case 'Scenario': 
+            apiPathSegment = 'scenarios'; 
+            refreshFunction = fetchScenarios;
+            break;
+        case 'Requirements': 
+            apiPathSegment = 'requirements'; 
+            refreshFunction = fetchRequirements;
+            break;
+        case 'Parameter': 
+            apiPathSegment = 'parameters'; 
+            refreshFunction = fetchParameters;
+            break;
+        case 'Functions': // Added
+            apiPathSegment = 'functions'; 
+            refreshFunction = fetchFunctions;
+            break;
+        // Add other cases here...
+        default: 
+            console.error(`API path segment unknown for domain: ${domainName}`);
+            setError(`Cannot determine API path for domain: ${domainName}`);
+            return;
+    }
+        
+    if (numMissions <= 0 || minSubMissions < 0 || maxSubMissions < minSubMissions) {
+        alert('Please enter valid numbers for generation.'); return;
+    }
+    setIsGenerating(true); setError(null);
+    try {
+      const apiUrl = `${API_URL}/${apiPathSegment}/bulk-generate`; 
+      console.log(`Calling bulk generate: ${apiUrl}`);
+
+      const response = await fetch(apiUrl, { 
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ count: numMissions, minSubs: minSubMissions, maxSubs: maxSubMissions }),
+      });
+
+      const resultData = await response.json();
+      if (!response.ok) {
+        throw new Error(resultData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      console.log(`Bulk generation successful for ${domainName}:`, resultData.message);
+      setSuccessMessage(resultData.message || `Bulk generated ${domainName}s.`);
+
+      // Call the correct refresh function
+      if (refreshFunction) await refreshFunction();
+
+    } catch (e) {
+      console.error(`Error bulk generating ${domainName}s:`, e);
+      setError(`Failed to bulk generate ${domainName}s: ${e.message}`);
+    } finally {
+      setIsGenerating(false); 
+    }
+  }, [numMissions, minSubMissions, maxSubMissions, fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]); // Add fetchFunctions dependency
+
+  // --- Config Update Logic --- 
+  const updateConfigOnBackend = async (configUpdate) => { /* ... */ };
+  const handleToggleAdjacentConnections = async (event) => { /* ... */ };
+  const moveDomain = (index, direction) => { /* ... */ };
+  const handleSaveDomainOrder = async () => { /* ... */ };
+
+  // --- Relationship Logic (Re-adding definitions) --- 
+  const startLinking = (fromId, fromDomain) => {
+      setLinkingState({ fromId, fromDomain });
+      setSuccessMessage(null); // Clear previous success message
+      setError(null); // Clear previous error message
+      console.log(`Start linking from ${fromDomain} item: ${fromId}`);
+  };
+
+  const completeLink = async (toId, toDomain) => {
+      if (!linkingState.fromId || !linkingState.fromDomain) return;
+      
+      const { fromId, fromDomain } = linkingState;
+      const relationshipType = getRelationshipType(fromDomain, toDomain);
+      
+      console.log(`Attempting to link ${fromDomain} (${fromId}) -> ${toDomain} (${toId}) with type ${relationshipType}`);
+      setError(null); // Clear previous errors
+      setIsUpdatingConfig(true); // Use general updating flag for visual feedback
+
       try {
-          const response = await fetch(`${API_URL}/config`, {
-              method: 'PUT',
+          const response = await fetch(`${API_URL}/relationships`, {
+              method: 'POST',
               headers: {
-                'Content-Type': 'application/json',
+                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify(configUpdate),
+              body: JSON.stringify({
+                 fromId,
+                 toId,
+                 fromDomain,
+                 toDomain,
+                 relationshipType
+              })
           });
+
+          const resultData = await response.json(); // Always try to parse JSON
+
           if (!response.ok) {
-              const errorData = await response.json().catch(() => ({})); 
-              throw new Error(`HTTP error! status: ${response.status} - ${errorData.error || 'Unknown error'}`);
+              throw new Error(resultData.error || `HTTP error! status: ${response.status}`);
           }
-          const updatedConfig = await response.json();
-          setAppConfig(updatedConfig); // Update main config state
-          if (configUpdate.domainOrder) {
-             setLocalDomainOrder(updatedConfig.domainOrder || []);
-             setConfigDirty(false); 
-          }
-          console.log('Config updated successfully');
-          return true; // Indicate success
+
+          console.log('Link created:', resultData);
+          setSuccessMessage(resultData.message || 'Link created successfully!'); 
+          // Optionally: Refresh data related to the linked items if needed
+
       } catch (e) {
-          console.error("Error updating config:", e);
-          setError(`Failed to update config: ${e.message}`);
-          return false; // Indicate failure
+          console.error("Error creating link:", e);
+          setError(`Failed to create link: ${e.message}`);
       } finally {
           setIsUpdatingConfig(false);
+          setLinkingState({ fromId: null, fromDomain: null }); // Reset linking state
       }
   };
-  
-  // Handler for toggling adjacent connections
-  const handleToggleAdjacentConnections = async (event) => {
-      const newSetting = event.target.checked;
-      if (!appConfig) return; 
-      // Call the generic update function
-      updateConfigOnBackend({ allowOnlyAdjacentConnections: newSetting });
+
+  const cancelLinking = () => {
+      setLinkingState({ fromId: null, fromDomain: null });
+      console.log('Linking cancelled');
   };
 
-  // Handlers for reordering domains locally
-  const moveDomain = (index, direction) => {
-    const newOrder = [...localDomainOrder];
-    const item = newOrder[index];
-    const swapIndex = index + direction;
+  // Determine combined loading state 
+  const isBusy = isLoadingMissions || isLoadingScenarios || isLoadingRequirements || isLoadingParameters || isLoadingFunctions || isGenerating || isLoadingConfig || isUpdatingConfig;
 
-    if (swapIndex < 0 || swapIndex >= newOrder.length) {
-      return; // Cannot move outside bounds
-    }
-
-    // Swap items
-    newOrder[index] = newOrder[swapIndex];
-    newOrder[swapIndex] = item;
-
-    setLocalDomainOrder(newOrder);
-    setConfigDirty(true); // Mark config as changed
-  };
-
-  // Handler for saving the reordered domains
-  const handleSaveDomainOrder = async () => {
-    if (!configDirty) return; // No changes to save
-    // Call the generic update function
-    const success = await updateConfigOnBackend({ domainOrder: localDomainOrder });
-    // Note: configDirty flag is reset inside updateConfigOnBackend on success
-  };
-
-  // Determine combined loading state for disabling forms
-  const isBusy = isLoadingMissions || isGenerating || isLoadingConfig || isUpdatingConfig;
-
+  // --- Main JSX (Updated) --- 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>Digital Thread Navigator</h1>
-      </header>
+    <div className="App" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <header className="App-header"><h1>Digital Thread Navigator</h1></header>
       
-      {/* --- Settings Display --- */} 
+      {/* Render Settings Panel */} 
       <section className="settings-panel">
-         <h2>Configuration Settings</h2>
-         {isLoadingConfig && <p>Loading configuration...</p>}
-         {!isLoadingConfig && appConfig && (
-            <div className="config-details">
-                <div className="config-domain-order">
-                    <strong>Domain Order:</strong>
-                    <ol className="domain-order-list">
-                      {localDomainOrder.map((domain, index) => (
-                        <li key={domain}> 
-                           <span>{domain}</span>
-                           <div className="order-buttons">
-                              <button 
-                                 onClick={() => moveDomain(index, -1)} 
-                                 disabled={index === 0 || isUpdatingConfig}
-                                 title="Move Up"
-                              >
-                                 &uarr; {/* Up arrow */}
-                              </button>
-                              <button 
-                                 onClick={() => moveDomain(index, 1)} 
-                                 disabled={index === localDomainOrder.length - 1 || isUpdatingConfig}
-                                 title="Move Down"
-                              >
-                                 &darr; {/* Down arrow */}
-                              </button>
-                           </div>
-                        </li>
-                      ))}
-                    </ol>
-                    {configDirty && (
-                       <button 
-                          onClick={handleSaveDomainOrder} 
-                          disabled={isUpdatingConfig} 
-                          className="save-order-button"
-                       >
-                          {isUpdatingConfig ? 'Saving Order...' : 'Save Domain Order'}
-                       </button>
-                    )}
-                </div>
-                
-                <div className="config-toggle">
-                   <label htmlFor="adjacent-toggle">Allow Only Adjacent Connections:</label>
-                   <input 
-                     type="checkbox" 
-                     id="adjacent-toggle"
-                     checked={appConfig.allowOnlyAdjacentConnections || false}
-                     onChange={handleToggleAdjacentConnections}
-                     disabled={isBusy}
-                   />
-                   <span>{isUpdatingConfig && !configDirty ? '(Updating...)' : ''}</span>
-                </div>
-            </div>
-         )}
-         {!isLoadingConfig && !appConfig && <p>Could not load configuration.</p>} 
-         {error && <p className="error" style={{marginTop: '10px'}}>Error: {error}</p>}
+          <h2>Configuration Settings</h2>
+          {isLoadingConfig && <p>Loading configuration...</p>}
+          {!isLoadingConfig && appConfig && (
+             <div className="config-details">
+                 {/* Domain Order UI */} 
+                 <div className="config-domain-order"> {/* ... */} </div>
+                 {/* Adjacent Connections Toggle UI */} 
+                 <div className="config-toggle"> {/* ... */} </div>
+
+                 {/* Node Display Mode Toggle */} 
+                 <div className="config-display-mode">
+                     <strong>Node Display:</strong>
+                     <label><input type="radio" name="displayMode" value="titleOnly" checked={nodeDisplayMode === 'titleOnly'} onChange={(e) => setNodeDisplayMode(e.target.value)} /> Title Only</label>
+                     <label><input type="radio" name="displayMode" value="idAndTitle" checked={nodeDisplayMode === 'idAndTitle'} onChange={(e) => setNodeDisplayMode(e.target.value)} /> ID + Title</label>
+                     <label><input type="radio" name="displayMode" value="full" checked={nodeDisplayMode === 'full'} onChange={(e) => setNodeDisplayMode(e.target.value)} /> Full Detail</label>
+                 </div>
+             </div>
+          )}
+          {error && <p className="error message-box">Error: {error}</p>}
+          {successMessage && <p className="success message-box">{successMessage}</p>}
+          {linkingState.fromId && (
+              <div className="linking-indicator message-box">
+                  <span>Linking from {linkingState.fromDomain} ({linkingState.fromId}). Click target item or </span>
+                  <button onClick={cancelLinking}>Cancel</button>
+              </div>
+           )}
       </section>
-      
-      <main>
-        {localDomainOrder.map(domainName => {
-           if (domainName === 'Mission') {
-               return (
-                   <section key={domainName} className="domain-column">
-                    <h2>{domainName}</h2>
-                    
-                    <form onSubmit={handleAddMission} className="add-item-form">
-                        <h3>Add New {domainName}</h3>
-                        <div>
-                            <label htmlFor={`${domainName}-title`}>Title:</label>
-                            <input 
-                                type="text"
-                                id={`${domainName}-title`}
-                                value={newMissionTitle}
-                                onChange={(e) => setNewMissionTitle(e.target.value)}
-                                required
-                                placeholder={`Enter ${domainName} title`}
-                                disabled={isBusy}
-                            />
-                         </div>
-                         <div>
-                            <label htmlFor={`${domainName}-desc`}>Description:</label>
-                            <textarea
-                                id={`${domainName}-desc`}
-                                value={newMissionDescription}
-                                onChange={(e) => setNewMissionDescription(e.target.value)}
-                                placeholder={`(Optional) Enter description`}
-                                disabled={isBusy}
-                            />
-                         </div>
-                         <button type="submit" disabled={isBusy}>
-                             {isLoadingMissions ? 'Adding...' : `Add ${domainName}`}
-                         </button>
-                    </form>
 
-                    <form onSubmit={handleBulkGenerate} className="add-item-form bulk-generate-form">
-                        <h3>Bulk Generate {domainName}s</h3>
-                        <div>
-                           <label htmlFor="num-missions">Number of Top-Level {domainName}s:</label>
-                           <input 
-                               type="number"
-                               id="num-missions"
-                               value={numMissions}
-                               onChange={(e) => setNumMissions(parseInt(e.target.value, 10) || 0)}
-                               min="1"
-                               required
-                               disabled={isBusy}
-                           />
-                        </div>
-                        <div>
-                           <label htmlFor="min-subs">Min Sub-{domainName}s per {domainName}:</label>
-                           <input 
-                               type="number"
-                               id="min-subs"
-                               value={minSubMissions}
-                               onChange={(e) => setMinSubMissions(parseInt(e.target.value, 10) || 0)}
-                               min="0"
-                               required
-                               disabled={isBusy}
-                            />
-                         </div>
-                         <div>
-                             <label htmlFor="max-subs">Max Sub-{domainName}s per {domainName}:</label>
-                             <input 
-                                 type="number"
-                                 id="max-subs"
-                                 value={maxSubMissions}
-                                 onChange={(e) => setMaxSubMissions(parseInt(e.target.value, 10) || 0)}
-                                 min={minSubMissions} 
-                                 required
-                                 disabled={isBusy}
-                             />
-                          </div>
-                          <button type="submit" disabled={isBusy}>
-                              {isGenerating ? 'Generating...' : `Generate ${domainName}s`}
-                          </button>
-                    </form>
+      {/* Render Control Panel */} 
+      <ControlPanel 
+          localDomainOrder={localDomainOrder}
+          isBusy={isBusy}
+          isGenerating={isGenerating}
+          onAddItem={handleAddItem} // Pass the generic add handler
+          onBulkGenerate={handleBulkGenerate}
+          // Pass shared bulk state
+          numMissions={numMissions} setNumMissions={setNumMissions} 
+          minSubMissions={minSubMissions} setMinSubMissions={setMinSubMissions} 
+          maxSubMissions={maxSubMissions} setMaxSubMissions={setMaxSubMissions}
+          // Pass individual loading states for Add buttons
+          isLoadingMissions={isLoadingMissions} 
+          isLoadingScenarios={isLoadingScenarios} 
+          isLoadingRequirements={isLoadingRequirements} 
+          isLoadingParameters={isLoadingParameters} 
+          isLoadingFunctions={isLoadingFunctions}
+          // Note: We need a better way to manage Add form state, 
+          // ideally within ControlPanel itself or passed more generically.
+          // For now, this example assumes ControlPanel manages its own form inputs.
+      />
 
-                    <div className="item-list">
-                      {(isLoadingMissions || isGenerating) && <p>Loading/Generating {domainName}s...</p>} 
-                      {!isLoadingMissions && !isGenerating && !error && missions.length === 0 && (
-                        <p>No {domainName}s found. Add one or generate some!</p>
-                      )}
-                      {!isLoadingMissions && !isGenerating && !error && missions.length > 0 && (
-                        <ul>
-                          {missions.map((mission) => (
-                            <li key={mission.id} className="item-card">
-                              <strong>{mission.id}: {mission.title}</strong>
-                              {mission.description && <p>{mission.description}</p>}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                   </section>
-               );
-           } else {
-              return (
-                 <section key={domainName} className="domain-column placeholder-column">
-                   <h2>{domainName}</h2>
-                   <p>(Content for {domainName} domain)</p>
-                 </section>
-              );
-           }
-        })}
-      </main>
+      {/* Render React Flow */} 
+      <div className="reactflow-wrapper" style={{ flexGrow: 1, height: '100%' }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes} // *** Pass custom node types ***
+          fitView
+        >
+          <Background />
+          <Controls />
+        </ReactFlow>
+      </div>
     </div>
+  );
+}
+
+// New App component wraps AppContent with the Provider
+function App() {
+  return (
+    <ReactFlowProvider>
+      <AppContent />
+    </ReactFlowProvider>
   );
 }
 

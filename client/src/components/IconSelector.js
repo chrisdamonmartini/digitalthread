@@ -51,21 +51,56 @@ const IconSelector = ({ value, onChange, onUpload }) => {
   
   // Calculate proper dropdown position when opened
   useEffect(() => {
-    if (isOpen && selectorRef.current && dropdownRef.current) {
-      const selectorRect = selectorRef.current.getBoundingClientRect();
-      const dropdownRect = dropdownRef.current.getBoundingClientRect();
-      const windowHeight = window.innerHeight;
-      const windowWidth = window.innerWidth;
+    if (isOpen && selectorRef.current) {
+      const updatePosition = () => {
+        if (!dropdownRef.current) return;
+        
+        const selectorRect = selectorRef.current.getBoundingClientRect();
+        const dropdownHeight = dropdownRef.current.offsetHeight;
+        const dropdownWidth = dropdownRef.current.offsetWidth;
+        
+        // Calculate available space
+        const spaceBelow = window.innerHeight - selectorRect.bottom;
+        const spaceRight = window.innerWidth - selectorRect.left;
+        
+        // Determine if dropdown should appear above or below
+        const showAbove = dropdownHeight > spaceBelow && selectorRect.top > dropdownHeight;
+        // Determine if dropdown should appear to the right or left
+        const showRight = dropdownWidth > spaceRight;
+        
+        // Position the dropdown
+        if (showAbove) {
+          dropdownRef.current.style.top = `${selectorRect.top - dropdownHeight}px`;
+        } else {
+          dropdownRef.current.style.top = `${selectorRect.bottom}px`;
+        }
+        
+        if (showRight) {
+          dropdownRef.current.style.right = `${window.innerWidth - selectorRect.right}px`;
+          dropdownRef.current.style.left = 'auto';
+        } else {
+          dropdownRef.current.style.left = `${selectorRect.left}px`;
+          dropdownRef.current.style.right = 'auto';
+        }
+        
+        // Update classes
+        setDropdownPosition({
+          top: showAbove,
+          right: showRight
+        });
+      };
       
-      // Check if dropdown would go off bottom of screen
-      const bottomOverflow = (selectorRect.bottom + dropdownRect.height) > windowHeight;
-      // Check if dropdown would go off right of screen
-      const rightOverflow = (selectorRect.left + dropdownRect.width) > windowWidth;
+      // Initial positioning
+      updatePosition();
       
-      setDropdownPosition({
-        top: bottomOverflow,
-        right: rightOverflow
-      });
+      // Update position on scroll or resize
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
+      
+      return () => {
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition);
+      };
     }
   }, [isOpen]);
   

@@ -13,6 +13,7 @@
   cursor: pointer;
   transition: all 0.2s;
   height: 36px;
+  box-sizing: border-box;
 }
 
 .icon-selector-trigger:hover {
@@ -43,35 +44,26 @@
 }
 
 .icon-selector-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
+  position: fixed;
   width: 320px;
   max-height: 400px;
   border: 1px solid #ccc;
   border-radius: 4px;
   background-color: white;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  transform-origin: top left;
-  transform: translateY(0);
+  z-index: 9999;
+  overflow: hidden;
 }
 
-.icon-selector-dropdown.position-top {
-  top: auto;
-  bottom: calc(100% + 4px);
-  transform-origin: bottom left;
-}
-
+.icon-selector-dropdown.position-top,
 .icon-selector-dropdown.position-right {
-  left: auto;
-  right: 0;
-  transform-origin: top right;
+  /* No transform properties */
 }
 
 .icon-selector-tabs {
   display: flex;
   border-bottom: 1px solid #ddd;
+  background-color: #f8f8f8;
 }
 
 .icon-selector-tab {
@@ -88,11 +80,13 @@
 .icon-selector-tab.active {
   color: #2196F3;
   border-bottom: 2px solid #2196F3;
+  background-color: white;
 }
 
 .icon-search {
   padding: 10px;
   border-bottom: 1px solid #eee;
+  background-color: white;
 }
 
 .icon-search input {
@@ -109,6 +103,7 @@
   padding: 15px;
   max-height: 250px;
   overflow-y: auto;
+  background-color: white;
 }
 
 .icon-item {
@@ -144,6 +139,7 @@
 
 .icon-upload {
   padding: 15px;
+  background-color: white;
 }
 
 .icon-upload p {

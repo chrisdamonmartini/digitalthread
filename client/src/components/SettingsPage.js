@@ -6,6 +6,34 @@ import './SettingsPage.css'; // Add CSS import
 
 const API_URL = 'http://localhost:3001/api';
 
+// Update the default colors to match the flow page
+const DEFAULT_DOMAIN_COLORS = {
+  'Mission': '#4285F4',       // Blue
+  'Scenario': '#34A853',      // Green
+  'Requirements': '#FBBC05',  // Yellow/Gold
+  'Parameter': '#EA4335',     // Red
+  'Functions': '#8F00FF',     // Purple
+  'Logical': '#FF6D01',       // Orange
+  'EBOM': '#0097A7',          // Teal
+  'Simulation Models': '#757575', // Gray
+  'Simulations': '#E91E63',   // Pink
+  'Test Cases': '#9E9E9E'     // Light Gray
+};
+
+// Update the default icons to match the flow page
+const DEFAULT_DOMAIN_ICONS = {
+  'Mission': 'mission',
+  'Scenario': 'simulation',
+  'Requirements': 'requirement',
+  'Parameter': 'parameter',
+  'Functions': 'function',
+  'Logical': 'logical',
+  'EBOM': 'typePartComponent48',
+  'Simulation Models': 'simulation',
+  'Simulations': 'simulation',
+  'Test Cases': 'test'
+};
+
 // Component for reordering domains
 const DomainOrderSettings = () => {
   const [domains, setDomains] = useState([]);
@@ -113,7 +141,7 @@ const DomainOrderSettings = () => {
       
       <div className="domain-order-list-container">
         <DragDropContext onDragEnd={onDragEnd}>
-          <Droppable droppableId="domains">
+          <Droppable droppableId="domains" isDropDisabled={false}>
             {(provided) => (
               <ul 
                 className="domain-order-list"
@@ -121,7 +149,7 @@ const DomainOrderSettings = () => {
                 ref={provided.innerRef}
               >
                 {domains.map((domain, index) => (
-                  <Draggable key={domain} draggableId={domain} index={index}>
+                  <Draggable key={domain} draggableId={domain} index={index} isDragDisabled={false}>
                     {(provided) => (
                       <li
                         ref={provided.innerRef}
@@ -452,20 +480,6 @@ const AppearanceSettings = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [customIcons, setCustomIcons] = useState({});
 
-  // Default colors for domains
-  const defaultColors = [
-    '#4285F4', // Blue
-    '#34A853', // Green
-    '#FBBC05', // Yellow
-    '#EA4335', // Red
-    '#8F00FF', // Purple
-    '#FF6D01', // Orange
-    '#0097A7', // Teal
-    '#757575', // Gray
-    '#E91E63', // Pink
-    '#9E9E9E'  // Light Gray
-  ];
-
   // Fetch current appearance settings
   useEffect(() => {
     const fetchAppearanceSettings = async () => {
@@ -501,14 +515,14 @@ const AppearanceSettings = () => {
         // Initialize settings for each domain
         const settings = {};
         
-        configData.domainOrder.forEach((domain, index) => {
+        configData.domainOrder.forEach((domain) => {
           const domainSettings = appearanceData[domain] || {};
           const iconSetting = domainSettings.iconType === 'custom'
             ? { type: 'custom', url: domainSettings.iconData }
-            : { type: 'preset', id: domainSettings.icon || 'default' };
+            : { type: 'preset', id: domainSettings.icon || DEFAULT_DOMAIN_ICONS[domain] || 'default' };
           
           settings[domain] = {
-            color: domainSettings.color || defaultColors[index % defaultColors.length],
+            color: domainSettings.color || DEFAULT_DOMAIN_COLORS[domain] || '#cccccc',
             icon: iconSetting
           };
         });

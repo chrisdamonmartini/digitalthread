@@ -199,6 +199,65 @@ router.post('/bulk-generate', async (req, res) => {
   }
 });
 
+// POST /api/functions/bulk - Simple bulk generate functions
+router.post('/bulk', async (req, res) => {
+  const { prefix, count, startNumber } = req.body;
+  
+  // Validate input
+  if (!prefix || !count || count <= 0 || count > 50) {
+    return res.status(400).json({ 
+      error: 'Valid prefix and count (1-50) are required' 
+    });
+  }
+  
+  const actualStartNumber = startNumber || 1;
+  const session = driver.session({ database: 'neo4j' });
+  
+  try {
+    // Prepare bulk creation query with parameters
+    let query = `
+      UNWIND $functions AS func
+      CREATE (f:Function {
+        id: func.id,
+        title: func.title,
+        description: func.description,
+        functionType: func.functionType,
+        createdAt: datetime(),
+        updatedAt: datetime()
+      })
+      RETURN f
+    `;
+    
+    // Generate data for each function
+    const functions = [];
+    for (let i = 0; i < count; i++) {
+      const num = actualStartNumber + i;
+      const paddedNum = num.toString().padStart(3, '0');
+      const functionId = `${prefix}-${paddedNum}`;
+      
+      functions.push({
+        id: functionId,
+        title: `${prefix} Function ${num}`,
+        description: `Auto-generated function ${functionId}`,
+        functionType: 'Process'
+      });
+    }
+    
+    // Execute bulk create
+    const result = await session.run(query, { functions });
+    
+    res.status(201).json({
+      count: result.records.length,
+      message: `Successfully generated ${result.records.length} functions`
+    });
+    
+  } catch (error) {
+    console.error('Error bulk generating functions:', error);
+    res.status(500).json({ error: 'Failed to generate functions', details: error.message });
+  } finally {
+    await session.close();
+  }
+});
 
 // TODO: Add routes for GET /:id, PUT /:id, DELETE /:id
 // TODO: Add routes for managing :HAS_CHILD relationships within Functions

@@ -207,6 +207,67 @@ router.post('/bulk-generate', async (req, res) => {
   }
 });
 
+// POST /api/parameter/bulk - Bulk generate parameters (simple version)
+router.post('/bulk', async (req, res) => {
+  const { prefix, count, startNumber } = req.body;
+  
+  // Validate input
+  if (!prefix || !count || count <= 0 || count > 50) {
+    return res.status(400).json({ 
+      error: 'Valid prefix and count (1-50) are required' 
+    });
+  }
+  
+  const actualStartNumber = startNumber || 1;
+  const session = driver.session({ database: 'neo4j' });
+  
+  try {
+    // Prepare bulk creation query with parameters
+    let query = `
+      UNWIND $parameters AS param
+      CREATE (p:Parameter {
+        id: param.id,
+        title: param.title,
+        description: param.description,
+        unit: param.unit,
+        valueType: param.valueType,
+        createdAt: datetime(),
+        updatedAt: datetime()
+      })
+      RETURN p
+    `;
+    
+    // Generate data for each parameter
+    const parameters = [];
+    for (let i = 0; i < count; i++) {
+      const num = actualStartNumber + i;
+      const paddedNum = num.toString().padStart(3, '0');
+      const parameterId = `${prefix}-${paddedNum}`;
+      
+      parameters.push({
+        id: parameterId,
+        title: `${prefix} Parameter ${num}`,
+        description: `Auto-generated parameter ${parameterId}`,
+        unit: 'unit',
+        valueType: 'number'
+      });
+    }
+    
+    // Execute bulk create
+    const result = await session.run(query, { parameters });
+    
+    res.status(201).json({
+      count: result.records.length,
+      message: `Successfully generated ${result.records.length} parameters`
+    });
+    
+  } catch (error) {
+    console.error('Error bulk generating parameters:', error);
+    res.status(500).json({ error: 'Failed to generate parameters', details: error.message });
+  } finally {
+    await session.close();
+  }
+});
 
 // TODO: Add routes for GET /:id, PUT /:id, DELETE /:id
 // TODO: Add routes for managing :HAS_CHILD relationships within Parameters

@@ -1,0 +1,160 @@
+.icon-selector-container {
+  position: relative;
+  width: 100%;
+}
+
+.icon-selector-trigger {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.icon-selector-trigger:hover {
+  border-color: #2196F3;
+}
+
+.selected-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 10px;
+}
+
+.icon-selector-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon-selector-arrow {
+  font-size: 12px;
+  color: #666;
+  margin-left: 8px;
+}
+
+.icon-selector-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 320px;
+  max-height: 400px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.icon-selector-tabs {
+  display: flex;
+  border-bottom: 1px solid #ddd;
+}
+
+.icon-selector-tab {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  color: #666;
+}
+
+.icon-selector-tab.active {
+  color: #2196F3;
+  border-bottom: 2px solid #2196F3;
+}
+
+.icon-search {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.icon-search input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 15px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.icon-item:hover {
+  background-color: #f5f5f5;
+  border-color: #eee;
+}
+
+.icon-item.selected {
+  background-color: #e3f2fd;
+  border-color: #90caf9;
+}
+
+.icon-name {
+  margin-top: 5px;
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.icon-upload {
+  padding: 15px;
+}
+
+.icon-upload p {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.file-input {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.upload-note {
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+.no-icons-found {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 20px;
+  color: #666;
+}
+
+.icon-preview {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+} 

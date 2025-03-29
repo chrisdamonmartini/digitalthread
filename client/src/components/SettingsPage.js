@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import IconPreview from './IconPreview';
+import IconSelector from './IconSelector';
 import './SettingsPage.css'; // Add CSS import
 
 const API_URL = 'http://localhost:3001/api';
@@ -449,6 +450,7 @@ const AppearanceSettings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [customIcons, setCustomIcons] = useState({});
 
   // Default colors for domains
   const defaultColors = [
@@ -462,18 +464,6 @@ const AppearanceSettings = () => {
     '#757575', // Gray
     '#E91E63', // Pink
     '#9E9E9E'  // Light Gray
-  ];
-
-  // Available icons for domains
-  const availableIcons = [
-    { id: 'default', name: 'Default' },
-    { id: 'mission', name: 'Mission' },
-    { id: 'requirement', name: 'Requirement' },
-    { id: 'parameter', name: 'Parameter' },
-    { id: 'function', name: 'Function' },
-    { id: 'logical', name: 'Logical' },
-    { id: 'simulation', name: 'Simulation' },
-    { id: 'test', name: 'Test' }
   ];
 
   // Fetch current appearance settings
@@ -495,6 +485,15 @@ const AppearanceSettings = () => {
         
         if (appearanceResponse.ok) {
           appearanceData = await appearanceResponse.json();
+          
+          // Extract custom icons if they exist
+          const icons = {};
+          Object.keys(appearanceData).forEach(domain => {
+            if (appearanceData[domain]?.iconType === 'custom' && appearanceData[domain]?.iconData) {
+              icons[domain] = appearanceData[domain].iconData;
+            }
+          });
+          setCustomIcons(icons);
         } else if (appearanceResponse.status !== 404) {
           throw new Error(`HTTP error! status: ${appearanceResponse.status}`);
         }
@@ -503,9 +502,14 @@ const AppearanceSettings = () => {
         const settings = {};
         
         configData.domainOrder.forEach((domain, index) => {
+          const domainSettings = appearanceData[domain] || {};
+          const iconSetting = domainSettings.iconType === 'custom'
+            ? { type: 'custom', url: domainSettings.iconData }
+            : { type: 'preset', id: domainSettings.icon || 'default' };
+          
           settings[domain] = {
-            color: appearanceData[domain]?.color || defaultColors[index % defaultColors.length],
-            icon: appearanceData[domain]?.icon || 'default'
+            color: domainSettings.color || defaultColors[index % defaultColors.length],
+            icon: iconSetting
           };
         });
         
@@ -546,15 +550,55 @@ const AppearanceSettings = () => {
     setSaveSuccess(false);
   };
   
+  // Handle icon upload
+  const handleIconUpload = (domain, file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const iconData = e.target.result;
+      
+      // Update custom icons state
+      setCustomIcons(prev => ({
+        ...prev,
+        [domain]: iconData
+      }));
+      
+      // Update domain settings with the custom icon
+      setDomainSettings(prev => ({
+        ...prev,
+        [domain]: {
+          ...prev[domain],
+          icon: { type: 'custom', url: iconData }
+        }
+      }));
+      
+      setSaveSuccess(false);
+    };
+    reader.readAsDataURL(file);
+  };
+  
   // Save appearance settings
   const saveAppearanceSettings = async () => {
     try {
+      // Convert the domainSettings structure to the format expected by the API
+      const formattedSettings = {};
+      
+      Object.keys(domainSettings).forEach(domain => {
+        const { color, icon } = domainSettings[domain];
+        
+        formattedSettings[domain] = {
+          color,
+          iconType: icon.type,
+          icon: icon.type === 'preset' ? icon.id : null,
+          iconData: icon.type === 'custom' ? icon.url : null
+        };
+      });
+      
       const response = await fetch(`${API_URL}/appearance`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(domainSettings),
+        body: JSON.stringify(formattedSettings),
       });
       
       if (!response.ok) {
@@ -576,14 +620,24 @@ const AppearanceSettings = () => {
   return (
     <div className="appearance-settings">
       <h3>Domain Appearance</h3>
-      <p>Customize the color and icon for each domain.</p>
+      <p>Customize the color and icon for each domain. You can select from preset icons or upload your own.</p>
       
       <div className="appearance-domain-list">
         {domains.map(domain => (
           <div key={domain} className="appearance-domain-item">
             <div className="domain-preview" style={{ backgroundColor: domainSettings[domain]?.color || '#ccc' }}>
               <div className="domain-icon-wrapper">
-                <IconPreview iconType={domainSettings[domain]?.icon || 'default'} size={32} />
+                {domainSettings[domain]?.icon?.type === 'custom' ? (
+                  <IconPreview 
+                    size={32} 
+                    customUrl={domainSettings[domain].icon.url} 
+                  />
+                ) : (
+                  <IconPreview 
+                    iconType={domainSettings[domain]?.icon?.id || 'default'} 
+                    size={32} 
+                  />
+                )}
               </div>
               <span>{domain}</span>
             </div>
@@ -601,18 +655,11 @@ const AppearanceSettings = () => {
               
               <div className="icon-control">
                 <label htmlFor={`icon-${domain}`}>Icon:</label>
-                <select
-                  id={`icon-${domain}`}
-                  value={domainSettings[domain]?.icon || 'default'}
-                  onChange={(e) => handleIconChange(domain, e.target.value)}
-                >
-                  {availableIcons.map(icon => (
-                    <option key={icon.id} value={icon.id}>{icon.name}</option>
-                  ))}
-                </select>
-                <div className="icon-preview">
-                  <IconPreview iconType={domainSettings[domain]?.icon || 'default'} size={24} />
-                </div>
+                <IconSelector
+                  value={domainSettings[domain]?.icon}
+                  onChange={(icon) => handleIconChange(domain, icon)}
+                  onUpload={(file) => handleIconUpload(domain, file)}
+                />
               </div>
             </div>
           </div>

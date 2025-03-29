@@ -267,6 +267,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 }
 
 .icon-preview {
@@ -281,16 +282,18 @@
 .icon-control {
     display: flex;
     align-items: center;
+    margin-top: 15px;
 }
 
-.icon-control select {
+.icon-control label {
+    width: 50px;
+    margin-right: 10px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.icon-control > div {
     flex: 1;
-}
-
-.appearance-controls {
-    padding: 15px;
-    background-color: #f9f9f9;
-    border-top: 1px solid #ddd;
 }
 
 .color-control,
@@ -305,18 +308,17 @@
     margin-bottom: 0;
 }
 
-.color-control label,
-.icon-control label {
-    width: 50px;
-    margin-right: 10px;
-    font-weight: 500;
-}
-
 .color-control input {
     height: 30px;
     width: 60px;
     padding: 0;
     cursor: pointer;
+}
+
+.appearance-controls {
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-top: 1px solid #ddd;
 }
 
 .appearance-actions {

@@ -11,8 +11,39 @@ try { LogicalIcon = require('../icons/Logical.svg').default; } catch (e) { conso
 try { SimulationIcon = require('../icons/AnalysisRequest.svg').default; } catch (e) { console.error('Failed to load Simulation icon:', e); }
 try { TestIcon = require('../icons/VerificationcenterIcon.svg').default; } catch (e) { console.error('Failed to load Test icon:', e); }
 
-const IconPreview = ({ iconType, size = 24 }) => {
+// Additional icons
+let TypeAction, TypeTarget, TypeWarning, TypeClass, CmdSettings, CmdSearch, 
+    CmdRefresh, TypePartComponent, TabIcon;
+
+try { TypeAction = require('../icons/typeAction48.svg').default; } catch (e) { console.error('Failed to load typeAction48 icon:', e); }
+try { TypeTarget = require('../icons/typeTarget48.svg').default; } catch (e) { console.error('Failed to load typeTarget48 icon:', e); }
+try { TypeWarning = require('../icons/typeWarning48.svg').default; } catch (e) { console.error('Failed to load typeWarning48 icon:', e); }
+try { TypeClass = require('../icons/typeClass48.svg').default; } catch (e) { console.error('Failed to load typeClass48 icon:', e); }
+try { CmdSettings = require('../icons/cmdSettings24.svg').default; } catch (e) { console.error('Failed to load cmdSettings24 icon:', e); }
+try { CmdSearch = require('../icons/cmdSearch24.svg').default; } catch (e) { console.error('Failed to load cmdSearch24 icon:', e); }
+try { CmdRefresh = require('../icons/cmdRefresh24.svg').default; } catch (e) { console.error('Failed to load cmdRefresh24 icon:', e); }
+try { TypePartComponent = require('../icons/typePartComponent48.svg').default; } catch (e) { console.error('Failed to load typePartComponent48 icon:', e); }
+try { TabIcon = require('../icons/TabIcon.svg').default; } catch (e) { console.error('Failed to load TabIcon icon:', e); }
+
+const IconPreview = ({ iconType, size = 24, customUrl = null }) => {
   const [hasError, setHasError] = useState(false);
+
+  // If customUrl is provided, render it directly
+  if (customUrl && !hasError) {
+    return (
+      <img 
+        src={customUrl} 
+        alt="Custom icon" 
+        style={{
+          width: size,
+          height: size,
+          verticalAlign: 'middle',
+          objectFit: 'contain'
+        }}
+        onError={() => setHasError(true)}
+      />
+    );
+  }
 
   const getIconByType = () => {
     try {
@@ -31,6 +62,25 @@ const IconPreview = ({ iconType, size = 24 }) => {
           return SimulationIcon;
         case 'test':
           return TestIcon;
+        // Additional icons
+        case 'typeaction48':
+          return TypeAction;
+        case 'typetarget48':
+          return TypeTarget;
+        case 'typewarning48':
+          return TypeWarning;
+        case 'typeclass48':
+          return TypeClass;
+        case 'cmdsettings24':
+          return CmdSettings;
+        case 'cmdsearch24':
+          return CmdSearch;
+        case 'cmdrefresh24':
+          return CmdRefresh;
+        case 'typepartcomponent48':
+          return TypePartComponent;
+        case 'tabicon':
+          return TabIcon;
         default:
           return null;
       }
@@ -65,7 +115,8 @@ const IconPreview = ({ iconType, size = 24 }) => {
       style={{
         width: size,
         height: size,
-        verticalAlign: 'middle'
+        verticalAlign: 'middle',
+        objectFit: 'contain'
       }}
       onError={() => setHasError(true)}
     />

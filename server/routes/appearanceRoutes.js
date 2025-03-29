@@ -41,6 +41,21 @@ router.put('/', async (req, res) => {
   if (!settings || typeof settings !== 'object') {
     return res.status(400).json({ error: 'Invalid appearance settings data provided.' });
   }
+
+  // Size limit check for custom icons
+  const MAX_ICON_SIZE = 100 * 1024; // 100KB
+  for (const domain in settings) {
+    if (settings[domain]?.iconType === 'custom' && settings[domain]?.iconData) {
+      const iconData = settings[domain].iconData;
+      const iconSize = Buffer.from(iconData.split(',')[1], 'base64').length;
+      
+      if (iconSize > MAX_ICON_SIZE) {
+        return res.status(400).json({
+          error: `Custom icon for domain "${domain}" exceeds the maximum size of 100KB.`
+        });
+      }
+    }
+  }
   
   const session = driver.session({ database: 'neo4j' });
   try {

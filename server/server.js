@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors'); // Import the cors package
 const driver = require('./db'); // Import the driver from db.js
 require('dotenv').config();
 
@@ -9,6 +10,11 @@ const port = process.env.PORT || 3001;
 // We no longer initialize the driver here
 
 // Middleware
+
+// Enable CORS for all origins (simple setup for development)
+// For production, you might want to restrict it to your specific frontend domain
+app.use(cors()); 
+
 app.use(express.json()); // To parse JSON request bodies
 
 // --- API Routes ---

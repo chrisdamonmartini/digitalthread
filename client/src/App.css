@@ -134,6 +134,13 @@ main {
   cursor: not-allowed;
 }
 
+/* Optional: Specific style for bulk generate form if needed */
+.bulk-generate-form {
+  border-top: 2px dashed #ccc;
+  margin-top: 30px;
+  padding-top: 20px;
+}
+
 /* Item List Styles */
 .item-list ul {
   list-style: none;

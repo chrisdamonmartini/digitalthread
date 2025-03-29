@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:5.15.0 # Use a specific version matching the driver if possible
+    container_name: digital-thread-neo4j
+    ports:
+      - "7474:7474" # Neo4j Browser UI
+      - "7687:7687" # Bolt port (for driver connection)
+    volumes:
+      - neo4j_data:/data
+    environment:
+      # IMPORTANT: Use a strong password in a real application!
+      # This password should match the one in server/.env
+      NEO4J_AUTH: neo4j/nKbv_KDdNeYrR3CBJ_jrQMotZMTDPSytMX7o9lhMgtU
+      # NEO4J_AUTH: neo4j/${NEO4J_PASSWORD} # Alternative using environment variable (requires .env file in root)
+      NEO4J_PLUGINS: '["apoc"]' # Include APOC plugins if needed later
+
+volumes:
+  neo4j_data: # Persists Neo4j data across container restarts 

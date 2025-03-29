@@ -1,0 +1,175 @@
+/* Basic Reset & App Styles */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f4f7f6;
+  color: #333;
+}
+
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+  margin-bottom: 20px;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+main {
+  display: flex;
+  flex-direction: row; /* Arrange domain columns horizontally */
+  justify-content: flex-start; /* Start from the left */
+  padding: 0 20px;
+  gap: 20px; /* Space between columns */
+  align-items: flex-start; /* Align columns at the top */
+  text-align: left;
+}
+
+/* Domain Column Styles */
+.domain-column {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px; /* Minimum width for a column */
+  max-width: 400px; /* Optional: max width */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.domain-column h2 {
+  margin-top: 0;
+  color: #282c34;
+  border-bottom: 2px solid #61dafb; /* React blue accent */
+  padding-bottom: 10px;
+}
+
+/* Form Styles */
+.add-item-form {
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  background-color: #fdfdfd;
+}
+
+.add-item-form h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.1em;
+}
+
+.add-item-form div {
+  margin-bottom: 10px;
+}
+
+.add-item-form label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
+.add-item-form input[type="text"],
+.add-item-form textarea {
+  width: calc(100% - 16px); /* Adjust for padding */
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+}
+
+.add-item-form textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.add-item-form button {
+  background-color: #61dafb;
+  color: #282c34;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+
+.add-item-form button:hover {
+  background-color: #21a1f1;
+}
+
+.add-item-form button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+/* Item List Styles */
+.item-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.item-card {
+  background-color: #fff;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.item-card strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+.item-card p {
+  margin: 5px 0 0 0;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.error {
+  color: #d9534f; /* Bootstrap danger color */
+  font-weight: bold;
+  background-color: #f2dede;
+  border: 1px solid #ebccd1;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+/* Loading Placeholder Style (optional) */
+/* You can add more specific loading indicators */

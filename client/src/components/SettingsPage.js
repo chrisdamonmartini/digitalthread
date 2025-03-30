@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import './SettingsPage.css';
+import { createApiEndpoint } from '../utils/api';
 import IconPreview from './IconPreview';
 import IconSelector from './IconSelector';
-import './SettingsPage.css'; // Add CSS import
+import DomainConfigPanel from './DomainConfigPanel';
+import ItemStructureWrapper from './ItemStructureWrapper';
 import ItemStructureTree from './ItemStructureTree'; // <-- Import the new component
 
 // Update API_URL to use the createApiEndpoint function
@@ -16,11 +19,6 @@ const getApiUrl = () => {
   
   // Return the first available URL with priority
   return envApiUrl || storedApiUrl || DEFAULT_API_URL;
-};
-
-// Use a function to create API endpoints to allow for dynamic changes
-const createApiEndpoint = (path) => {
-  return `${getApiUrl()}/${path}`;
 };
 
 // Update the default colors to match the flow page
@@ -445,17 +443,27 @@ const ItemManagementSettings = () => {
     setSearchQuery(''); // Optionally clear search query
 
     try {
-      const response = await fetch(createApiEndpoint(`items/structure/${item.id}`));
+      // First try the direct structure endpoint in the itemRoutes
+      let response = await fetch(createApiEndpoint(`items/structure/${item.id}`));
+      
+      // If that fails, try the alternative structure endpoint
+      if (!response.ok && response.status === 404) {
+        response = await fetch(createApiEndpoint(`structure/${item.id}`));
+      }
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-         if (response.status === 501) { // Handle specific APOC error message
+        if (response.status === 501) { // Handle specific APOC error message
             throw new Error(errorData.error || 'Failed to fetch structure: APOC procedure likely missing or misconfigured on the server.');
         } else {
             throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
       }
+      
       const structureData = await response.json();
       setItemStructure(structureData);
+      
+      console.log("Retrieved structure data:", structureData);
     } catch (error) {
       console.error("Error fetching item structure:", error);
       setStructureError(error.message);
@@ -722,26 +730,12 @@ const ItemManagementSettings = () => {
             {structureLoading && <div className="info-message">Loading structure...</div>}
             
             {selectedItem && !structureLoading && !structureError && (
-              <>
-                <h4>
-                  Structure for: {selectedItem.title}
-                  <small>{selectedItem.labels?.join(', ')}</small>
-                </h4>
-                
-                {itemStructure && (
-                  <ItemStructureTree 
-                    itemStructure={itemStructure} 
-                    onDelete={handleDeleteItem}
-                    onRename={handleRenameItem}
-                  />
-                )}
-                
-                {!itemStructure && !structureLoading && !structureError && (
-                  <div className="empty-tree-message">
-                    This item has no structure data.
-                  </div>
-                )}
-              </>
+              <ItemStructureWrapper 
+                itemData={itemStructure}
+                onDelete={handleDeleteItem}
+                onRename={handleRenameItem}
+                onRefresh={() => handleSelectItem(selectedItem)}
+              />
             )}
             
             {!selectedItem && !structureLoading && (

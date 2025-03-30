@@ -508,7 +508,7 @@ function FlowView() {
           selectable: true, // Make selectable to enable click events
           position: { 
             x: columnWidth - parentPadding - 24, // Right-justified (24 is the icon width)
-            y: parentPadding // Align with the title vertically
+            y: parentPadding + 3 // Adjusted to align with the middle of the domain title
           },
           data: { 
             label: null,
@@ -523,7 +523,7 @@ function FlowView() {
             backgroundRepeat: 'no-repeat',
             backgroundPosition: 'center',
             backgroundColor: 'transparent',
-            border: 'none',
+            border: 'none', // No border
             outline: 'none',
             cursor: 'pointer',
             zIndex: 5

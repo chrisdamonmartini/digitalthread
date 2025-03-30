@@ -22,14 +22,18 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState('');
+  const [domainColor, setDomainColor] = useState('#14364F');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Fetch available items for the domain when the panel opens
+  // Fetch available items and configurations for the domain when the panel opens
   useEffect(() => {
     const fetchItems = async () => {
       if (!isOpen || !domainName) return;
       
       setLoading(true);
       setError(null);
+      setSaveSuccess(false);
       
       try {
         // Use a lowercase version of domain name for API routes (consistent with backend)
@@ -54,11 +58,16 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
         const data = await response.json();
         setAvailableItems(data);
         
-        // Also fetch currently selected items for display
+        // Also fetch currently selected items and visual configs for display
         const configResponse = await fetch(createApiEndpoint(`config/domain-display/${domainName}`));
         
         if (configResponse.ok) {
           const configData = await configResponse.json();
+          
+          // Set domain color if available
+          if (configData.domainColor) {
+            setDomainColor(configData.domainColor);
+          }
           
           // If we have display items, load their full details by matching IDs
           if (configData.displayItems && configData.displayItems.length > 0) {
@@ -99,8 +108,17 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
     setSelectedItems(selectedItems.filter(item => item.id !== itemId));
   };
   
+  // Handle color change
+  const handleColorChange = (e) => {
+    setDomainColor(e.target.value);
+  };
+  
   // Save display configuration
   const handleSaveConfig = async () => {
+    setIsSaving(true);
+    setSaveSuccess(false);
+    setError(null);
+    
     try {
       const response = await fetch(createApiEndpoint(`config/domain-display/${domainName}`), {
         method: 'PUT',
@@ -108,7 +126,8 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          displayItems: selectedItems.map(item => item.id)
+          displayItems: selectedItems.map(item => item.id),
+          domainColor: domainColor
         }),
       });
       
@@ -116,11 +135,16 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
         throw new Error(`Failed to save display configuration: ${response.statusText}`);
       }
       
-      // Close panel on success
-      onClose();
+      // Show success message briefly before closing
+      setSaveSuccess(true);
+      setTimeout(() => {
+        onClose(); // Close panel after success
+      }, 1000);
     } catch (err) {
       console.error('Error saving display configuration:', err);
       setError(`Failed to save: ${err.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -210,20 +234,25 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
               Color:
               <input 
                 type="color" 
-                defaultValue="#14364F"
-                // Future implementation: update domain color
+                value={domainColor}
+                onChange={handleColorChange}
               />
             </label>
           </div>
         </div>
+        
+        {saveSuccess && (
+          <div className="success-message">Configuration saved successfully!</div>
+        )}
         
         <div className="config-actions">
           <button className="action-button cancel" onClick={onClose}>Cancel</button>
           <button 
             className="action-button save"
             onClick={handleSaveConfig}
+            disabled={isSaving}
           >
-            Save Changes
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>

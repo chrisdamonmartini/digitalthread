@@ -213,6 +213,7 @@ function FlowView() {
 
   // Add domainDisplayConfig state to store display configuration
   const [domainDisplayConfig, setDomainDisplayConfig] = useState({});
+  const [domainColors, setDomainColors] = useState({}); // Store domain colors
   const [isLoadingDisplayConfig, setIsLoadingDisplayConfig] = useState(true);
 
   // --- useEffect for successMessage (Keep for linking feedback) --- 
@@ -477,7 +478,9 @@ function FlowView() {
   // Function to close domain config panel
   const closeDomainConfigPanel = useCallback(() => {
     setActiveDomainConfig(null);
-  }, [setActiveDomainConfig]);
+    // Refresh configs when panel is closed to ensure UI reflects any changes
+    fetchDomainDisplayConfigs();
+  }, [setActiveDomainConfig, fetchDomainDisplayConfigs]);
 
   // Function to fetch domain display configurations
   const fetchDomainDisplayConfigs = useCallback(async () => {
@@ -485,6 +488,7 @@ function FlowView() {
     setError(null);
     
     const displayConfigMap = {};
+    const colorMap = {};
     
     try {
       // Fetch the display configuration for each domain
@@ -495,34 +499,40 @@ function FlowView() {
           if (!response.ok) {
             // If config doesn't exist yet, that's OK - we'll return an empty array
             if (response.status === 404) {
-              return { domainName, displayItems: [] };
+              return { domainName, displayItems: [], domainColor: '#14364F' };
             }
             throw new Error(`Failed to fetch display config for ${domainName}`);
           }
           
           const data = await response.json();
-          return { domainName, displayItems: data.displayItems || [] };
+          return { 
+            domainName, 
+            displayItems: data.displayItems || [],
+            domainColor: data.domainColor || '#14364F'
+          };
         } catch (err) {
           console.error(`Error fetching display config for ${domainName}:`, err);
-          return { domainName, displayItems: [], error: err.message };
+          return { domainName, displayItems: [], domainColor: '#14364F', error: err.message };
         }
       });
       
       const results = await Promise.all(fetchPromises);
       
-      // Create a map of domain names to display item IDs
+      // Create maps of domain names to display items and colors
       results.forEach(result => {
         displayConfigMap[result.domainName] = result.displayItems;
+        colorMap[result.domainName] = result.domainColor;
       });
       
       setDomainDisplayConfig(displayConfigMap);
+      setDomainColors(colorMap);
     } catch (err) {
       console.error('Error fetching domain display configurations:', err);
       setError('Failed to load domain display configurations');
     } finally {
       setIsLoadingDisplayConfig(false);
     }
-  }, [localDomainOrder, createApiEndpoint]);
+  }, [localDomainOrder]);
 
   // Add the fetch call to the useEffect for loading data
   useEffect(() => {
@@ -701,7 +711,8 @@ function FlowView() {
 
         // Get domain-specific configuration
         const domainSpecificConfig = domainConfig[domainName] || {};
-        const domainColor = domainSpecificConfig.color || '#14364F'; // Default color if not specified
+        // Use color from domainColors state if available, otherwise use default
+        const domainColor = domainColors[domainName] || domainSpecificConfig.color || '#14364F';
 
         // --- 1. Add Parent Node --- 
         newNodes.push({
@@ -715,7 +726,7 @@ function FlowView() {
               width: columnWidth, 
               height: parentHeight, 
               backgroundColor: 'white',
-              border: `1px solid ${domainColor}`, // Use domain-specific color
+              border: `1px solid ${domainColor}`, // Use domain-specific color from config
               borderRadius: '4px',
               boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
           },
@@ -770,8 +781,8 @@ function FlowView() {
               textAlign: 'left',
               paddingBottom: '5px',
               backgroundColor: 'transparent',
-              border: 'none', // Remove any border
-              outline: 'none', // Add outline: none to ensure no outline is displayed
+              border: 'none',
+              outline: 'none',
               zIndex: 1 
           }
         });
@@ -990,6 +1001,7 @@ function FlowView() {
     handleDomainSettingsClick,
     domainDisplayConfig,
     isLoadingDisplayConfig, // Add loading state as dependency
+    domainColors, // Add domainColors as a dependency
   ]);
 
   // Define a function to handle when a node is dragged

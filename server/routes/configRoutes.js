@@ -244,17 +244,18 @@ router.get('/domain-display/:domainName', async (req, res) => {
     // Check if a display configuration already exists for this domain
     const result = await session.run(
       `MATCH (c:DomainDisplayConfig {domainName: $domainName})
-       RETURN c.displayItems AS displayItems`,
+       RETURN c.displayItems AS displayItems, c.domainColor AS domainColor`,
       { domainName }
     );
     
     if (result.records.length === 0) {
       // No configuration found, return an empty list
-      return res.json({ displayItems: [] });
+      return res.json({ displayItems: [], domainColor: '#14364F' });
     }
     
-    // Get display item IDs
+    // Get display item IDs and domain color
     const displayItemIds = result.records[0].get('displayItems') || [];
+    const domainColor = result.records[0].get('domainColor') || '#14364F';
     
     // If there are display items, fetch their details
     let displayItems = [];
@@ -283,7 +284,7 @@ router.get('/domain-display/:domainName', async (req, res) => {
       displayItems = itemsResult.records.map(record => record.get('item').properties);
     }
     
-    res.json({ displayItems });
+    res.json({ displayItems, domainColor });
   } catch (error) {
     console.error(`Error retrieving ${domainName} display configuration:`, error);
     res.status(500).json({ error: `Failed to retrieve ${domainName} display configuration`, details: error.message });
@@ -296,7 +297,7 @@ router.get('/domain-display/:domainName', async (req, res) => {
 // Update the display configuration for a specific domain
 router.put('/domain-display/:domainName', async (req, res) => {
   const { domainName } = req.params;
-  const { displayItems } = req.body;
+  const { displayItems, domainColor } = req.body;
   
   if (!domainName) {
     return res.status(400).json({ error: 'Domain name is required' });
@@ -312,11 +313,13 @@ router.put('/domain-display/:domainName', async (req, res) => {
     await session.run(
       `MERGE (c:DomainDisplayConfig {domainName: $domainName})
        SET c.displayItems = $displayItems,
+           c.domainColor = $domainColor,
            c.updatedAt = datetime()
        RETURN c`,
       { 
         domainName,
-        displayItems
+        displayItems,
+        domainColor: domainColor || '#14364F'
       }
     );
     

@@ -791,7 +791,10 @@ async function saveApprovedItems(session, domain, items, connectToNext) {
       itemsCreated++;
     }
     
-    // Create parent-child relationships
+    // Create parent-child relationships and update parent items with childIds
+    const parentChildMap = {};
+    
+    // First, collect all children for each parent
     for (const item of items) {
       // Skip items without parent references
       if (!item.parentId) continue;
@@ -800,22 +803,45 @@ async function saveApprovedItems(session, domain, items, connectToNext) {
       const newChildId = idMap[item.id];
       const newParentId = idMap[item.parentId];
       
-      // Only create relationship if both parent and child exist in approved items
+      // Only process if both parent and child exist in approved items
       if (newChildId && newParentId) {
-        // Create relationship based on domain type
-        const relationshipType = `CHILD_${domain.toUpperCase()}`;
+        // Initialize parent's children array if needed
+        if (!parentChildMap[newParentId]) {
+          parentChildMap[newParentId] = [];
+        }
         
+        // Add child to parent's array
+        parentChildMap[newParentId].push(newChildId);
+      }
+    }
+    
+    // Now create relationships and update parent items with childIds
+    for (const [parentId, childIds] of Object.entries(parentChildMap)) {
+      // Determine the childIds property name based on domain
+      const childIdsProperty = `child${domain}Ids`;
+      
+      // Create HAS_CHILD relationships for each child
+      for (const childId of childIds) {
         await tx.run(
           `
           MATCH (parent:${domain} {id: $parentId})
           MATCH (child:${domain} {id: $childId})
-          CREATE (parent)-[:${relationshipType}]->(child)
+          CREATE (parent)-[:HAS_CHILD]->(child)
           `,
-          { parentId: newParentId, childId: newChildId }
+          { parentId, childId }
         );
         
         connectionsCreated++;
       }
+      
+      // Update parent item with childIds array
+      await tx.run(
+        `
+        MATCH (parent:${domain} {id: $parentId})
+        SET parent.${childIdsProperty} = $childIds
+        `,
+        { parentId, childIds }
+      );
     }
     
     // If connectToNext is true, create connections to the next domain
@@ -923,6 +949,10 @@ async function generateDomainItems(session, domain, count, depth, programType) {
         item.functionType = template.functionType;
       }
       
+      // Initialize childIds array property based on domain
+      const childIdsProperty = `child${domain}Ids`;
+      item[childIdsProperty] = [];
+      
       // Create the node in Neo4j
       const result = await tx.run(
         `CREATE (n:${domain} $item) RETURN n`,
@@ -934,7 +964,127 @@ async function generateDomainItems(session, domain, count, depth, programType) {
       
       // Generate child items if depth > 1
       if (depth > 1) {
-        // Implementation in a future update
+        const childrenPerItem = Math.max(2, Math.floor(Math.random() * 4)); // 2-3 children per item
+        const childIds = [];
+        
+        for (let j = 0; j < childrenPerItem; j++) {
+          // Select a random template for the child
+          const childTemplateIndex = Math.floor(Math.random() * templates.length);
+          const childTemplate = templates[childTemplateIndex];
+          
+          // Generate a unique ID for the child
+          const childId = `${itemId}-CHILD-${(j + 1).toString().padStart(3, '0')}`;
+          childIds.push(childId);
+          
+          // Create the child item with base properties
+          const childItem = {
+            id: childId,
+            title: `${childTemplate.title} ${i + 1}.${j + 1}`,
+            description: childTemplate.description,
+            createdAt: new Date().toISOString(),
+            programType: programType
+          };
+          
+          // Add domain-specific properties
+          if (domain === 'Parameter') {
+            childItem.unit = childTemplate.unit;
+            childItem.valueType = childTemplate.valueType;
+          } else if (domain === 'Functions') {
+            childItem.functionType = childTemplate.functionType;
+          }
+          
+          // Initialize childIds array property for child
+          childItem[childIdsProperty] = [];
+          
+          // Create the child node in Neo4j
+          await tx.run(
+            `CREATE (n:${domain} $item) RETURN n`,
+            { item: childItem }
+          );
+          
+          // Create relationship between parent and child
+          await tx.run(
+            `
+            MATCH (parent:${domain} {id: $parentId})
+            MATCH (child:${domain} {id: $childId})
+            CREATE (parent)-[:HAS_CHILD]->(child)
+            `,
+            { parentId: itemId, childId }
+          );
+          
+          itemsCreated++;
+          connectionsCreated++;
+          
+          // Generate grandchildren if depth > 2
+          if (depth > 2) {
+            const grandchildrenPerChild = Math.max(2, Math.floor(Math.random() * 3)); // 2-3 grandchildren
+            const grandchildIds = [];
+            
+            for (let k = 0; k < grandchildrenPerChild; k++) {
+              // Select a random template for the grandchild
+              const grandchildTemplateIndex = Math.floor(Math.random() * templates.length);
+              const grandchildTemplate = templates[grandchildTemplateIndex];
+              
+              // Generate a unique ID for the grandchild
+              const grandchildId = `${childId}-CHILD-${(k + 1).toString().padStart(3, '0')}`;
+              grandchildIds.push(grandchildId);
+              
+              // Create the grandchild item
+              const grandchildItem = {
+                id: grandchildId,
+                title: `${grandchildTemplate.title} ${i + 1}.${j + 1}.${k + 1}`,
+                description: grandchildTemplate.description,
+                createdAt: new Date().toISOString(),
+                programType: programType
+              };
+              
+              // Add domain-specific properties
+              if (domain === 'Parameter') {
+                grandchildItem.unit = grandchildTemplate.unit;
+                grandchildItem.valueType = grandchildTemplate.valueType;
+              } else if (domain === 'Functions') {
+                grandchildItem.functionType = grandchildTemplate.functionType;
+              }
+              
+              // Create the grandchild node in Neo4j
+              await tx.run(
+                `CREATE (n:${domain} $item) RETURN n`,
+                { item: grandchildItem }
+              );
+              
+              // Create relationship between child and grandchild
+              await tx.run(
+                `
+                MATCH (parent:${domain} {id: $parentId})
+                MATCH (child:${domain} {id: $childId})
+                CREATE (parent)-[:HAS_CHILD]->(child)
+                `,
+                { parentId: childId, childId: grandchildId }
+              );
+              
+              itemsCreated++;
+              connectionsCreated++;
+            }
+            
+            // Update the child item with grandchildIds
+            await tx.run(
+              `
+              MATCH (child:${domain} {id: $childId})
+              SET child.${childIdsProperty} = $grandchildIds
+              `,
+              { childId, grandchildIds }
+            );
+          }
+        }
+        
+        // Update the parent item with childIds
+        await tx.run(
+          `
+          MATCH (parent:${domain} {id: $parentId})
+          SET parent.${childIdsProperty} = $childIds
+          `,
+          { parentId: itemId, childIds }
+        );
       }
     }
     

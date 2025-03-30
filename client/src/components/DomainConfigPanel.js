@@ -5,7 +5,7 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
   return (
     <div className={`domain-config-panel ${isOpen ? 'open' : ''}`}>
       <div className="panel-header">
-        <h2>{domainName} Configuration</h2>
+        <h2>Domain Configuration</h2>
         <button className="close-button" onClick={onClose}>×</button>
       </div>
       

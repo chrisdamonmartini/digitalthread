@@ -1,244 +1,83 @@
-import React, { useState, useEffect, useRef } from 'react';
-import IconPreview from './IconPreview';
+import React, { useState } from 'react';
 import './IconSelector.css';
 
-// List of built-in icon types for easy selection
-const BUILT_IN_ICONS = [
-  { id: 'default', name: 'Default' },
-  { id: 'mission', name: 'Mission' },
-  { id: 'requirement', name: 'Requirement' },
-  { id: 'parameter', name: 'Parameter' },
-  { id: 'function', name: 'Function' },
-  { id: 'logical', name: 'Logical' },
-  { id: 'simulation', name: 'Simulation' },
-  { id: 'test', name: 'Test' }
+// List of icon options - you can expand this as needed
+const ICON_OPTIONS = [
+  { id: 'default', label: 'Default', value: '' },
+  { id: 'star', label: 'Star', value: 'star' },
+  { id: 'flag', label: 'Flag', value: 'flag' },
+  { id: 'check', label: 'Check', value: 'check' },
+  { id: 'gear', label: 'Gear', value: 'gear' },
+  { id: 'document', label: 'Document', value: 'document' },
+  { id: 'person', label: 'Person', value: 'person' },
+  { id: 'lightbulb', label: 'Lightbulb', value: 'lightbulb' },
+  { id: 'chart', label: 'Chart', value: 'chart' },
+  { id: 'car', label: 'Car', value: 'car' },
+  { id: 'aircraft', label: 'Aircraft', value: 'aircraft' },
+  { id: 'satellite', label: 'Satellite', value: 'satellite' }
 ];
 
-// Additional SVG/icon options from the icon folder
-const ADDITIONAL_ICONS = [
-  { id: 'typeAction48', name: 'Action' },
-  { id: 'typeTarget48', name: 'Target' },
-  { id: 'typeWarning48', name: 'Warning' },
-  { id: 'typeClass48', name: 'Class' },
-  { id: 'cmdSettings24', name: 'Settings' },
-  { id: 'cmdSearch24', name: 'Search' },
-  { id: 'cmdRefresh24', name: 'Refresh' },
-  { id: 'typePartComponent48', name: 'Part' },
-  { id: 'TabIcon', name: 'Tab' }
-];
-
-// All available preset icons
-const ALL_PRESET_ICONS = [...BUILT_IN_ICONS, ...ADDITIONAL_ICONS];
-
-const IconSelector = ({ value, onChange, onUpload }) => {
+const IconSelector = ({ selectedIcon, onSelectIcon }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedTab, setSelectedTab] = useState('presets');
-  const [customIconUrl, setCustomIconUrl] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dropdownPosition, setDropdownPosition] = useState({
-    top: false,
-    right: false
-  });
-  
-  const selectorRef = useRef(null);
-  const dropdownRef = useRef(null);
-  
-  // Filter icons based on search term
-  const filteredIcons = ALL_PRESET_ICONS.filter(icon => 
-    icon.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    icon.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  // Calculate proper dropdown position when opened
-  useEffect(() => {
-    if (isOpen && selectorRef.current) {
-      const updatePosition = () => {
-        if (!dropdownRef.current) return;
-        
-        const selectorRect = selectorRef.current.getBoundingClientRect();
-        const dropdownHeight = dropdownRef.current.offsetHeight;
-        const dropdownWidth = dropdownRef.current.offsetWidth;
-        
-        // Calculate available space
-        const spaceBelow = window.innerHeight - selectorRect.bottom;
-        const spaceRight = window.innerWidth - selectorRect.left;
-        
-        // Determine if dropdown should appear above or below
-        const showAbove = dropdownHeight > spaceBelow && selectorRect.top > dropdownHeight;
-        // Determine if dropdown should appear to the right or left
-        const showRight = dropdownWidth > spaceRight;
-        
-        // Position the dropdown
-        if (showAbove) {
-          dropdownRef.current.style.top = `${selectorRect.top - dropdownHeight}px`;
-        } else {
-          dropdownRef.current.style.top = `${selectorRect.bottom}px`;
-        }
-        
-        if (showRight) {
-          dropdownRef.current.style.right = `${window.innerWidth - selectorRect.right}px`;
-          dropdownRef.current.style.left = 'auto';
-        } else {
-          dropdownRef.current.style.left = `${selectorRect.left}px`;
-          dropdownRef.current.style.right = 'auto';
-        }
-        
-        // Update classes
-        setDropdownPosition({
-          top: showAbove,
-          right: showRight
-        });
-      };
-      
-      // Initial positioning
-      updatePosition();
-      
-      // Update position on scroll or resize
-      window.addEventListener('scroll', updatePosition, true);
-      window.addEventListener('resize', updatePosition);
-      
-      return () => {
-        window.removeEventListener('scroll', updatePosition, true);
-        window.removeEventListener('resize', updatePosition);
-      };
-    }
-  }, [isOpen]);
-  
-  // Handle icon file upload
-  const handleIconUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    if (!file.type.match('image/(svg\\+xml|png|jpeg|jpg)')) {
-      alert('Please upload an SVG, PNG, or JPEG file.');
-      return;
-    }
-    
-    // If onUpload is provided, let the parent component handle the upload
-    if (onUpload) {
-      onUpload(file);
-      setIsOpen(false);
-      return;
-    }
-    
-    // Otherwise, create a URL for previewing the uploaded icon
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setCustomIconUrl(e.target.result);
-      onChange({ type: 'custom', url: e.target.result });
-      setIsOpen(false);
-    };
-    reader.readAsDataURL(file);
-  };
 
-  // Handle selecting a preset icon
-  const handleSelectIcon = (iconId) => {
-    onChange({ type: 'preset', id: iconId });
+  const handleSelect = (iconValue) => {
+    onSelectIcon(iconValue);
     setIsOpen(false);
   };
-  
-  // Close the selector when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (selectorRef.current && !selectorRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen]);
 
-  // Get dropdown position classes
-  const getDropdownClasses = () => {
-    let classes = 'icon-selector-dropdown';
-    if (dropdownPosition.top) classes += ' position-top';
-    if (dropdownPosition.right) classes += ' position-right';
-    return classes;
+  // Helper to get icon display
+  const getIconDisplay = (iconValue) => {
+    if (!iconValue) return '✓'; // Default icon
+    
+    // Map icon names to symbols
+    const iconMap = {
+      'star': '★',
+      'flag': '⚑',
+      'check': '✓',
+      'gear': '⚙',
+      'document': '📄',
+      'person': '👤',
+      'lightbulb': '💡',
+      'chart': '📊',
+      'car': '🚗',
+      'aircraft': '✈️',
+      'satellite': '🛰️'
+    };
+    
+    return iconMap[iconValue] || '✓';
   };
-  
+
   return (
-    <div className="icon-selector-container" ref={selectorRef}>
-      <div className="icon-selector-trigger" onClick={() => setIsOpen(!isOpen)}>
-        <div className="selected-icon">
-          {value?.type === 'custom' ? (
-            <img src={value.url} alt="Custom Icon" className="icon-preview" />
-          ) : (
-            <IconPreview iconType={value?.id || 'default'} size={28} />
-          )}
-        </div>
-        <span className="icon-selector-text">
-          {value?.type === 'custom' 
-            ? 'Custom Icon' 
-            : ALL_PRESET_ICONS.find(i => i.id === value?.id)?.name || 'Select Icon'}
+    <div className="icon-selector">
+      <div 
+        className="selected-icon"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="icon-display">
+          {getIconDisplay(selectedIcon)}
         </span>
-        <span className="icon-selector-arrow">▼</span>
+        <span className="icon-name">
+          {selectedIcon ? ICON_OPTIONS.find(i => i.value === selectedIcon)?.label : 'Default'}
+        </span>
+        <span className="dropdown-arrow">▼</span>
       </div>
       
       {isOpen && (
-        <div className={getDropdownClasses()} ref={dropdownRef}>
-          <div className="icon-selector-tabs">
-            <button 
-              className={`icon-selector-tab ${selectedTab === 'presets' ? 'active' : ''}`}
-              onClick={() => setSelectedTab('presets')}
+        <div className="icon-dropdown">
+          {ICON_OPTIONS.map(icon => (
+            <div 
+              key={icon.id}
+              className={`icon-option ${selectedIcon === icon.value ? 'selected' : ''}`}
+              onClick={() => handleSelect(icon.value)}
             >
-              Preset Icons
-            </button>
-            <button 
-              className={`icon-selector-tab ${selectedTab === 'upload' ? 'active' : ''}`}
-              onClick={() => setSelectedTab('upload')}
-            >
-              Upload Icon
-            </button>
-          </div>
-          
-          {selectedTab === 'presets' && (
-            <>
-              <div className="icon-search">
-                <input
-                  type="text"
-                  placeholder="Search icons..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="icon-grid">
-                {filteredIcons.map(icon => (
-                  <div 
-                    key={icon.id}
-                    className={`icon-item ${value?.id === icon.id ? 'selected' : ''}`}
-                    onClick={() => handleSelectIcon(icon.id)}
-                  >
-                    <IconPreview iconType={icon.id} size={24} />
-                    <span className="icon-name">{icon.name}</span>
-                  </div>
-                ))}
-                {filteredIcons.length === 0 && (
-                  <div className="no-icons-found">No icons match your search.</div>
-                )}
-              </div>
-            </>
-          )}
-          
-          {selectedTab === 'upload' && (
-            <div className="icon-upload">
-              <p>Upload a custom icon (SVG, PNG, or JPEG)</p>
-              <input 
-                type="file" 
-                accept=".svg,.png,.jpg,.jpeg"
-                onChange={handleIconUpload}
-                className="file-input"
-              />
-              <div className="upload-note">
-                For best results, use SVG format with a square aspect ratio.
-              </div>
+              <span className="icon-display">
+                {getIconDisplay(icon.value)}
+              </span>
+              <span className="icon-option-name">
+                {icon.label}
+              </span>
             </div>
-          )}
+          ))}
         </div>
       )}
     </div>

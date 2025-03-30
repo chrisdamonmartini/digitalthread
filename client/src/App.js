@@ -53,15 +53,16 @@ function FlowView() {
   const [linkingState, setLinkingState] = useState({ fromId: null, fromDomain: null });
   const [error, setError] = useState(null); 
   const [successMessage, setSuccessMessage] = useState(null); 
-  const [nodeDisplayMode, setNodeDisplayMode] = useState('titleOnly'); 
+  const [nodeDisplayMode, setNodeDisplayMode] = useState('idAndTitle'); // 'full', 'idAndTitle', 'titleOnly'
   // Add state for relationship lines toggle
-  const [showRelationshipLines, setShowRelationshipLines] = useState(true);
+  const [showRelationshipLines, setShowRelationshipLines] = useState(false);
   // Add state for domain icons toggle
   const [showDomainIcons, setShowDomainIcons] = useState(true);
 
   // Add state for filter text for each domain
   const [domainFilters, setDomainFilters] = useState({});
-
+  const [domainPositions, setDomainPositions] = useState({}); // Store domain positions
+  
   // React Flow State
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -255,6 +256,14 @@ function FlowView() {
     setDomainFilters(prev => ({
       ...prev,
       [domainId]: filterText
+    }));
+  }, []);
+
+  // Keep track of original domain positions
+  const storeDomainPosition = useCallback((nodeId, position) => {
+    setDomainPositions(prev => ({
+      ...prev,
+      [nodeId]: position
     }));
   }, []);
 
@@ -659,6 +668,74 @@ function FlowView() {
     setNodes, setEdges
   ]);
 
+  // Define a function to handle when a node is dragged
+  const onNodeDrag = useCallback((event, node) => {
+    // Only apply the logic to domain parent nodes
+    if (!node.id.startsWith('domain-')) return;
+
+    // Get all domain nodes (parent containers)
+    const domainNodes = nodes.filter(n => n.id.startsWith('domain-'));
+    
+    // Get the current node's dimensions
+    const currentNodeWidth = node.style?.width || 380; // Use the default width if not defined
+    const currentNodeX = node.position.x;
+    
+    // Minimum spacing between domains (horizontal)
+    const minDomainSpacing = 50; // Match the columnGap value
+    
+    // Boundaries to keep nodes within visible area
+    const minX = 20; // Minimum X position
+    
+    // Check if node is being dragged outside boundaries
+    if (currentNodeX < minX) {
+      node.position.x = minX;
+    }
+    
+    // Check distance from current node to all other domain nodes
+    let hasCollision = false;
+    domainNodes.forEach(otherNode => {
+      // Skip the node being dragged
+      if (otherNode.id === node.id) return;
+      
+      const otherNodeWidth = otherNode.style?.width || 380;
+      const otherNodeX = otherNode.position.x;
+      
+      // Calculate horizontal distance between nodes
+      const distanceX = currentNodeX - otherNodeX;
+      
+      // If nodes are getting too close (from either left or right)
+      if (Math.abs(distanceX) < (currentNodeWidth + otherNodeWidth)/2 + minDomainSpacing) {
+        hasCollision = true;
+        // Only reposition if the node is actively being dragged (not during initial layout)
+        if (event) {
+          // Reposition the node being dragged to maintain minimum spacing
+          if (distanceX > 0) {
+            // Current node is to the right of other node
+            node.position.x = otherNodeX + otherNodeWidth/2 + currentNodeWidth/2 + minDomainSpacing;
+          } else {
+            // Current node is to the left of other node
+            node.position.x = otherNodeX - otherNodeWidth/2 - currentNodeWidth/2 - minDomainSpacing;
+          }
+        }
+      }
+    });
+    
+    // Optional: Snap to grid if there's no collision
+    if (!hasCollision) {
+      const gridSize = 20; // Snap to every 20px
+      node.position.x = Math.round(node.position.x / gridSize) * gridSize;
+    }
+    
+  }, [nodes]);
+  
+  // Handle when node drag ends
+  const onNodeDragStop = useCallback((event, node) => {
+    if (node.id.startsWith('domain-')) {
+      // Store the final position of the domain
+      storeDomainPosition(node.id, { ...node.position });
+    }
+  }, [storeDomainPosition]);
+
   // --- Main JSX for Flow View --- 
   return (
     <div className="flow-view-container" style={{ height: '100%' }}>
@@ -668,8 +745,12 @@ function FlowView() {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         fitView
+        snapToGrid={true}
+        snapGrid={[20, 20]}
       >
         <Background />
         <Controls />

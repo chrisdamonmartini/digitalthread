@@ -193,6 +193,253 @@ router.post('/bulk-generate', async (req, res) => {
   }
 });
 
+// GET /api/requirements/:id/hierarchy - Retrieve hierarchy for a specific requirement
+router.get('/:id/hierarchy', async (req, res) => {
+  const { id } = req.params;
+  const session = driver.session({ database: 'neo4j' });
+  
+  try {
+    // Fetch the requirement and its hierarchical data
+    const result = await session.run(
+      `MATCH (r:Requirement {id: $id})
+       OPTIONAL MATCH path = (r)-[:HAS_CHILD*]->(child:Requirement)
+       OPTIONAL MATCH (s:Scenario)-[:DRIVES]->(r)
+       OPTIONAL MATCH (r)-[:DEFINES]->(p:Parameter)
+       OPTIONAL MATCH (childS:Scenario)-[:DRIVES]->(child)
+       OPTIONAL MATCH (child)-[:DEFINES]->(childP:Parameter)
+       RETURN r as rootRequirement,
+              collect(DISTINCT child) as childRequirements,
+              collect(DISTINCT s) as drivingScenarios,
+              collect(DISTINCT p) as definedParameters,
+              collect(DISTINCT childS) as childDrivingScenarios,
+              collect(DISTINCT childP) as childDefinedParameters,
+              collect(DISTINCT path) as paths`,
+      { id }
+    );
+    
+    if (result.records.length === 0) {
+      return res.status(404).json({ error: `Requirement with ID ${id} not found` });
+    }
+    
+    const record = result.records[0];
+    const rootRequirement = record.get('rootRequirement').properties;
+    const childRequirements = record.get('childRequirements').map(req => req.properties);
+    const drivingScenarios = record.get('drivingScenarios').map(scenario => scenario.properties);
+    const definedParameters = record.get('definedParameters').map(param => param.properties);
+    const childDrivingScenarios = record.get('childDrivingScenarios').map(scenario => scenario.properties);
+    const childDefinedParameters = record.get('childDefinedParameters').map(param => param.properties);
+    const paths = record.get('paths');
+    
+    // Build hierarchy object
+    const hierarchy = {
+      ...rootRequirement,
+      children: [],
+      scenarios: drivingScenarios,
+      parameters: definedParameters
+    };
+    
+    // Helper function to find a requirement in the hierarchy by ID
+    const findRequirement = (reqId, node) => {
+      if (node.id === reqId) return node;
+      
+      for (const child of node.children) {
+        const found = findRequirement(reqId, child);
+        if (found) return found;
+      }
+      
+      return null;
+    };
+    
+    // Process paths to build hierarchy
+    for (const path of paths) {
+      if (path.length === 0) continue;
+      
+      // Extract requirements from path
+      const requirementsInPath = path.segments.map(segment => ({
+        parentId: segment.start.properties.id,
+        childId: segment.end.properties.id
+      }));
+      
+      // Add each requirement to its parent
+      for (const { parentId, childId } of requirementsInPath) {
+        const childRequirement = childRequirements.find(r => r.id === childId);
+        if (!childRequirement) continue;
+        
+        // Find scenarios that drive this child
+        const childScenarios = childDrivingScenarios
+          .filter(s => s.id)
+          .filter(s => {
+            return result.records.some(rec => 
+              rec.get('childRequirements').some(r => 
+                r.properties.id === childId && 
+                rec.get('childDrivingScenarios').some(cs => cs.properties.id === s.id)
+              )
+            );
+          });
+        
+        // Find parameters defined by this child
+        const childParams = childDefinedParameters
+          .filter(p => p.id)
+          .filter(p => {
+            return result.records.some(rec => 
+              rec.get('childRequirements').some(r => 
+                r.properties.id === childId && 
+                rec.get('childDefinedParameters').some(cp => cp.properties.id === p.id)
+              )
+            );
+          });
+        
+        const childWithRelations = {
+          ...childRequirement,
+          children: [],
+          scenarios: childScenarios,
+          parameters: childParams
+        };
+        
+        const parent = findRequirement(parentId, hierarchy);
+        if (parent) {
+          // Check if already added
+          const existingChild = parent.children.find(c => c.id === childId);
+          if (!existingChild) {
+            parent.children.push(childWithRelations);
+          }
+        }
+      }
+    }
+    
+    // Handle direct parent-child relationships
+    for (const childRequirement of childRequirements) {
+      // Find if this requirement is already in hierarchy
+      const existingInHierarchy = findRequirement(childRequirement.id, hierarchy);
+      
+      // If not found in hierarchy, it's a direct child of root
+      if (!existingInHierarchy && paths.length === 0) {
+        // Find scenarios that drive this child
+        const childScenarios = childDrivingScenarios
+          .filter(s => s.id)
+          .filter(s => {
+            return result.records.some(rec => 
+              rec.get('childRequirements').some(r => 
+                r.properties.id === childRequirement.id && 
+                rec.get('childDrivingScenarios').some(cs => cs.properties.id === s.id)
+              )
+            );
+          });
+        
+        // Find parameters defined by this child
+        const childParams = childDefinedParameters
+          .filter(p => p.id)
+          .filter(p => {
+            return result.records.some(rec => 
+              rec.get('childRequirements').some(r => 
+                r.properties.id === childRequirement.id && 
+                rec.get('childDefinedParameters').some(cp => cp.properties.id === p.id)
+              )
+            );
+          });
+          
+        hierarchy.children.push({
+          ...childRequirement,
+          children: [],
+          scenarios: childScenarios,
+          parameters: childParams
+        });
+      }
+    }
+    
+    res.status(200).json(hierarchy);
+    
+  } catch (error) {
+    console.error(`Error retrieving hierarchy for requirement ${id}:`, error);
+    res.status(500).json({ error: 'Failed to retrieve requirement hierarchy', details: error.message });
+  } finally {
+    await session.close();
+  }
+});
+
+// POST /api/requirements/bulk - Create multiple requirements at once
+router.post('/bulk', async (req, res) => {
+  const { prefix, count, descriptionTemplate } = req.body;
+  
+  if (!prefix || !count || count <= 0 || count > 100) {
+    return res.status(400).json({ 
+      error: 'Invalid bulk creation parameters. Requires prefix and count (1-100).' 
+    });
+  }
+
+  const session = driver.session({ database: 'neo4j' });
+  try {
+    // Generate a batch of requirements
+    const requirements = [];
+    
+    // Get the latest requirement ID to ensure we don't create duplicates
+    const idQuery = await session.run(`
+      MATCH (r:Requirement)
+      RETURN r.id AS id
+      ORDER BY r.id DESC
+      LIMIT 1
+    `);
+    
+    // Determine the starting ID number
+    let lastId = 0;
+    if (idQuery.records.length > 0) {
+      const lastIdStr = idQuery.records[0].get('id');
+      // Extract the numeric part if it's in a format like "REQ-001"
+      const match = lastIdStr.match(/\d+$/);
+      if (match) {
+        lastId = parseInt(match[0]);
+      }
+    }
+    
+    // Create transaction to insert all requirements at once
+    const txc = session.beginTransaction();
+    
+    for (let i = 1; i <= count; i++) {
+      const reqId = `${prefix}-${String(lastId + i).padStart(3, '0')}`;
+      const reqTitle = `${prefix} ${i}`;
+      
+      // Replace {i} with the current index in the description template
+      let description = descriptionTemplate || `Auto-generated requirement ${i}`;
+      description = description.replace(/\{i\}/g, i.toString());
+      
+      await txc.run(`
+        CREATE (r:Requirement {
+          id: $id,
+          title: $title,
+          description: $description,
+          createdAt: datetime(),
+          updatedAt: datetime()
+        })
+        RETURN r
+      `, {
+        id: reqId,
+        title: reqTitle,
+        description: description
+      });
+      
+      requirements.push({
+        id: reqId,
+        title: reqTitle,
+        description: description
+      });
+    }
+    
+    // Commit the transaction
+    await txc.commit();
+    
+    res.status(201).json({
+      message: `Created ${count} requirements successfully`,
+      count: requirements.length,
+      requirements: requirements
+    });
+  } catch (error) {
+    console.error('Error creating requirements in bulk:', error);
+    res.status(500).json({ error: 'Failed to create requirements in bulk', details: error.message });
+  } finally {
+    await session.close();
+  }
+});
+
 // TODO: Add routes for GET /:id, PUT /:id, DELETE /:id
 // TODO: Add routes for managing :HAS_CHILD relationships within Requirements
 

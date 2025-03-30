@@ -51,6 +51,14 @@ app.use('/api/functions', functionRoutes); // Use plural path
 const appearanceRoutes = require('./routes/appearanceRoutes');
 app.use('/api/appearance', appearanceRoutes);
 
+// Import and use domain routes
+const domainRoutes = require('./routes/domainRoutes');
+app.use('/api/domains', domainRoutes);
+
+// Import and use settings routes
+const settingsRoutes = require('./routes/settingsRoutes');
+app.use('/api/settings', settingsRoutes);
+
 app.get('/', (req, res) => {
   res.send('Digital Thread Navigator Backend is running!');
 });

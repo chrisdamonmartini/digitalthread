@@ -207,63 +207,252 @@ router.post('/bulk-generate', async (req, res) => {
   }
 });
 
-// POST /api/parameter/bulk - Bulk generate parameters (simple version)
+// POST /api/parameters/bulk - Create multiple parameters at once
 router.post('/bulk', async (req, res) => {
-  const { prefix, count, startNumber } = req.body;
+  const { prefix, count, descriptionTemplate } = req.body;
   
-  // Validate input
-  if (!prefix || !count || count <= 0 || count > 50) {
+  if (!prefix || !count || count <= 0 || count > 100) {
     return res.status(400).json({ 
-      error: 'Valid prefix and count (1-50) are required' 
+      error: 'Invalid bulk creation parameters. Requires prefix and count (1-100).' 
     });
   }
-  
-  const actualStartNumber = startNumber || 1;
+
   const session = driver.session({ database: 'neo4j' });
-  
   try {
-    // Prepare bulk creation query with parameters
-    let query = `
-      UNWIND $parameters AS param
-      CREATE (p:Parameter {
-        id: param.id,
-        title: param.title,
-        description: param.description,
-        unit: param.unit,
-        valueType: param.valueType,
-        createdAt: datetime(),
-        updatedAt: datetime()
-      })
-      RETURN p
-    `;
-    
-    // Generate data for each parameter
+    // Generate a batch of parameters
     const parameters = [];
-    for (let i = 0; i < count; i++) {
-      const num = actualStartNumber + i;
-      const paddedNum = num.toString().padStart(3, '0');
-      const parameterId = `${prefix}-${paddedNum}`;
+    
+    // Get the latest parameter ID to ensure we don't create duplicates
+    const idQuery = await session.run(`
+      MATCH (p:Parameter)
+      RETURN p.id AS id
+      ORDER BY p.id DESC
+      LIMIT 1
+    `);
+    
+    // Determine the starting ID number
+    let lastId = 0;
+    if (idQuery.records.length > 0) {
+      const lastIdStr = idQuery.records[0].get('id');
+      // Extract the numeric part if it's in a format like "PAR-001"
+      const match = lastIdStr.match(/\d+$/);
+      if (match) {
+        lastId = parseInt(match[0]);
+      }
+    }
+    
+    // Create transaction to insert all parameters at once
+    const txc = session.beginTransaction();
+    
+    for (let i = 1; i <= count; i++) {
+      const paramId = `${prefix}-${String(lastId + i).padStart(3, '0')}`;
+      const paramTitle = `${prefix} ${i}`;
+      
+      // Replace {i} with the current index in the description template
+      let description = descriptionTemplate || `Auto-generated parameter ${i}`;
+      description = description.replace(/\{i\}/g, i.toString());
+      
+      await txc.run(`
+        CREATE (p:Parameter {
+          id: $id,
+          title: $title,
+          description: $description,
+          valueType: 'string',
+          unit: '',
+          createdAt: datetime(),
+          updatedAt: datetime()
+        })
+        RETURN p
+      `, {
+        id: paramId,
+        title: paramTitle,
+        description: description
+      });
       
       parameters.push({
-        id: parameterId,
-        title: `${prefix} Parameter ${num}`,
-        description: `Auto-generated parameter ${parameterId}`,
-        unit: 'unit',
-        valueType: 'number'
+        id: paramId,
+        title: paramTitle,
+        description: description,
+        valueType: 'string',
+        unit: ''
       });
     }
     
-    // Execute bulk create
-    const result = await session.run(query, { parameters });
+    // Commit the transaction
+    await txc.commit();
     
     res.status(201).json({
-      count: result.records.length,
-      message: `Successfully generated ${result.records.length} parameters`
+      message: `Created ${count} parameters successfully`,
+      count: parameters.length,
+      parameters: parameters
     });
+  } catch (error) {
+    console.error('Error creating parameters in bulk:', error);
+    res.status(500).json({ error: 'Failed to create parameters in bulk', details: error.message });
+  } finally {
+    await session.close();
+  }
+});
+
+// GET /api/parameters/:id/hierarchy - Retrieve hierarchy for a specific parameter
+router.get('/:id/hierarchy', async (req, res) => {
+  const { id } = req.params;
+  const session = driver.session({ database: 'neo4j' });
+  
+  try {
+    // Fetch the parameter and its hierarchical data
+    const result = await session.run(
+      `MATCH (p:Parameter {id: $id})
+       OPTIONAL MATCH path = (p)-[:HAS_CHILD*]->(child:Parameter)
+       OPTIONAL MATCH (r:Requirement)-[:DEFINES]->(p)
+       OPTIONAL MATCH (p)-[:INPUT_TO]->(f:Function)
+       OPTIONAL MATCH (childR:Requirement)-[:DEFINES]->(child)
+       OPTIONAL MATCH (child)-[:INPUT_TO]->(childF:Function)
+       RETURN p as rootParameter,
+              collect(DISTINCT child) as childParameters,
+              collect(DISTINCT r) as definingRequirements,
+              collect(DISTINCT f) as inputToFunctions,
+              collect(DISTINCT childR) as childDefiningRequirements,
+              collect(DISTINCT childF) as childInputToFunctions,
+              collect(DISTINCT path) as paths`,
+      { id }
+    );
+    
+    if (result.records.length === 0) {
+      return res.status(404).json({ error: `Parameter with ID ${id} not found` });
+    }
+    
+    const record = result.records[0];
+    const rootParameter = record.get('rootParameter').properties;
+    const childParameters = record.get('childParameters').map(param => param.properties);
+    const definingRequirements = record.get('definingRequirements').map(req => req.properties);
+    const inputToFunctions = record.get('inputToFunctions').map(func => func.properties);
+    const childDefiningRequirements = record.get('childDefiningRequirements').map(req => req.properties);
+    const childInputToFunctions = record.get('childInputToFunctions').map(func => func.properties);
+    const paths = record.get('paths');
+    
+    // Build hierarchy object
+    const hierarchy = {
+      ...rootParameter,
+      children: [],
+      requirements: definingRequirements,
+      functions: inputToFunctions
+    };
+    
+    // Helper function to find a parameter in the hierarchy by ID
+    const findParameter = (paramId, node) => {
+      if (node.id === paramId) return node;
+      
+      for (const child of node.children) {
+        const found = findParameter(paramId, child);
+        if (found) return found;
+      }
+      
+      return null;
+    };
+    
+    // Process paths to build hierarchy
+    for (const path of paths) {
+      if (path.length === 0) continue;
+      
+      // Extract parameters from path
+      const parametersInPath = path.segments.map(segment => ({
+        parentId: segment.start.properties.id,
+        childId: segment.end.properties.id
+      }));
+      
+      // Add each parameter to its parent
+      for (const { parentId, childId } of parametersInPath) {
+        const childParameter = childParameters.find(p => p.id === childId);
+        if (!childParameter) continue;
+        
+        // Find requirements that define this child
+        const childRequirements = childDefiningRequirements
+          .filter(r => r.id)
+          .filter(r => {
+            return result.records.some(rec => 
+              rec.get('childParameters').some(p => 
+                p.properties.id === childId && 
+                rec.get('childDefiningRequirements').some(cr => cr.properties.id === r.id)
+              )
+            );
+          });
+        
+        // Find functions that use this child as input
+        const childFunctions = childInputToFunctions
+          .filter(f => f.id)
+          .filter(f => {
+            return result.records.some(rec => 
+              rec.get('childParameters').some(p => 
+                p.properties.id === childId && 
+                rec.get('childInputToFunctions').some(cf => cf.properties.id === f.id)
+              )
+            );
+          });
+        
+        const childWithRelations = {
+          ...childParameter,
+          children: [],
+          requirements: childRequirements,
+          functions: childFunctions
+        };
+        
+        const parent = findParameter(parentId, hierarchy);
+        if (parent) {
+          // Check if already added
+          const existingChild = parent.children.find(c => c.id === childId);
+          if (!existingChild) {
+            parent.children.push(childWithRelations);
+          }
+        }
+      }
+    }
+    
+    // Handle direct parent-child relationships
+    for (const childParameter of childParameters) {
+      // Find if this parameter is already in hierarchy
+      const existingInHierarchy = findParameter(childParameter.id, hierarchy);
+      
+      // If not found in hierarchy, it's a direct child of root
+      if (!existingInHierarchy && paths.length === 0) {
+        // Find requirements that define this child
+        const childRequirements = childDefiningRequirements
+          .filter(r => r.id)
+          .filter(r => {
+            return result.records.some(rec => 
+              rec.get('childParameters').some(p => 
+                p.properties.id === childParameter.id && 
+                rec.get('childDefiningRequirements').some(cr => cr.properties.id === r.id)
+              )
+            );
+          });
+        
+        // Find functions that use this child as input
+        const childFunctions = childInputToFunctions
+          .filter(f => f.id)
+          .filter(f => {
+            return result.records.some(rec => 
+              rec.get('childParameters').some(p => 
+                p.properties.id === childParameter.id && 
+                rec.get('childInputToFunctions').some(cf => cf.properties.id === f.id)
+              )
+            );
+          });
+          
+        hierarchy.children.push({
+          ...childParameter,
+          children: [],
+          requirements: childRequirements,
+          functions: childFunctions
+        });
+      }
+    }
+    
+    res.status(200).json(hierarchy);
     
   } catch (error) {
-    console.error('Error bulk generating parameters:', error);
-    res.status(500).json({ error: 'Failed to generate parameters', details: error.message });
+    console.error(`Error retrieving hierarchy for parameter ${id}:`, error);
+    res.status(500).json({ error: 'Failed to retrieve parameter hierarchy', details: error.message });
   } finally {
     await session.close();
   }

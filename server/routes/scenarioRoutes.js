@@ -193,6 +193,74 @@ router.post('/bulk-generate', async (req, res) => {
   }
 });
 
+// GET /api/scenarios/:id/hierarchy - Retrieve hierarchy for a specific scenario
+router.get('/:id/hierarchy', async (req, res) => {
+  const { id } = req.params;
+  const session = driver.session({ database: 'neo4j' });
+  
+  try {
+    // Fetch the scenario and its hierarchical data
+    const result = await session.run(
+      `MATCH (s:Scenario {id: $id})
+       OPTIONAL MATCH (m:Mission)-[:DRIVES]->(s)
+       OPTIONAL MATCH (s)-[:HAS_CHILD]->(child:Scenario)
+       OPTIONAL MATCH (s)-[:DRIVES]->(r:Requirement)
+       OPTIONAL MATCH (child)-[:DRIVES]->(childR:Requirement)
+       RETURN s as rootScenario,
+              collect(DISTINCT m) as drivingMissions,
+              collect(DISTINCT child) as childScenarios,
+              collect(DISTINCT r) as drivenRequirements,
+              collect(DISTINCT childR) as childDrivenRequirements`,
+      { id }
+    );
+    
+    if (result.records.length === 0) {
+      return res.status(404).json({ error: `Scenario with ID ${id} not found` });
+    }
+    
+    const record = result.records[0];
+    const rootScenario = record.get('rootScenario').properties;
+    const drivingMissions = record.get('drivingMissions').map(mission => mission.properties);
+    const childScenarios = record.get('childScenarios').map(scenario => scenario.properties);
+    const drivenRequirements = record.get('drivenRequirements').map(req => req.properties);
+    const childDrivenRequirements = record.get('childDrivenRequirements').map(req => req.properties);
+    
+    // Build hierarchy object
+    const hierarchy = {
+      ...rootScenario,
+      children: childScenarios.map(child => {
+        // Find requirements driven by this child
+        const childReqs = childDrivenRequirements
+          .filter(req => req.id)
+          .filter(req => {
+            return result.records.some(rec => 
+              rec.get('childScenarios').some(s => 
+                s.properties.id === child.id && 
+                rec.get('childDrivenRequirements').some(cr => cr.properties.id === req.id)
+              )
+            );
+          });
+          
+        return {
+          ...child,
+          children: [], // Grandchildren not included in this query
+          requirements: childReqs
+        };
+      }),
+      missions: drivingMissions,
+      requirements: drivenRequirements
+    };
+    
+    res.status(200).json(hierarchy);
+    
+  } catch (error) {
+    console.error(`Error retrieving hierarchy for scenario ${id}:`, error);
+    res.status(500).json({ error: 'Failed to retrieve scenario hierarchy', details: error.message });
+  } finally {
+    await session.close();
+  }
+});
+
 // TODO: Add routes for GET /:id, PUT /:id, DELETE /:id
 // TODO: Add routes for managing :HAS_CHILD relationships within Scenarios
 

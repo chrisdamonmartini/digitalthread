@@ -259,6 +259,137 @@ router.post('/bulk', async (req, res) => {
   }
 });
 
+// GET /api/functions/:id/hierarchy - Retrieve hierarchy for a specific function
+router.get('/:id/hierarchy', async (req, res) => {
+  const { id } = req.params;
+  const session = driver.session({ database: 'neo4j' });
+  
+  try {
+    // Fetch the function and its hierarchical data
+    const result = await session.run(
+      `MATCH (f:Function {id: $id})
+       OPTIONAL MATCH path = (f)-[:HAS_CHILD*]->(child:Function)
+       OPTIONAL MATCH (p:Parameter)-[:INPUT_TO]->(f)
+       OPTIONAL MATCH (childP:Parameter)-[:INPUT_TO]->(child)
+       RETURN f as rootFunction,
+              collect(DISTINCT child) as childFunctions,
+              collect(DISTINCT p) as inputParameters,
+              collect(DISTINCT childP) as childInputParameters,
+              collect(DISTINCT path) as paths`,
+      { id }
+    );
+    
+    if (result.records.length === 0) {
+      return res.status(404).json({ error: `Function with ID ${id} not found` });
+    }
+    
+    const record = result.records[0];
+    const rootFunction = record.get('rootFunction').properties;
+    const childFunctions = record.get('childFunctions').map(func => func.properties);
+    const inputParameters = record.get('inputParameters').map(param => param.properties);
+    const childInputParameters = record.get('childInputParameters').map(param => param.properties);
+    const paths = record.get('paths');
+    
+    // Build hierarchy object
+    const hierarchy = {
+      ...rootFunction,
+      children: [],
+      inputParameters: inputParameters
+    };
+    
+    // Helper function to find a function in the hierarchy by ID
+    const findFunction = (funcId, node) => {
+      if (node.id === funcId) return node;
+      
+      for (const child of node.children) {
+        const found = findFunction(funcId, child);
+        if (found) return found;
+      }
+      
+      return null;
+    };
+    
+    // Process paths to build hierarchy
+    for (const path of paths) {
+      if (path.length === 0) continue;
+      
+      // Extract functions from path
+      const functionsInPath = path.segments.map(segment => ({
+        parentId: segment.start.properties.id,
+        childId: segment.end.properties.id
+      }));
+      
+      // Add each function to its parent
+      for (const { parentId, childId } of functionsInPath) {
+        const childFunction = childFunctions.find(f => f.id === childId);
+        if (!childFunction) continue;
+        
+        // Find parameters that are inputs to this child function
+        const childParams = childInputParameters
+          .filter(p => p.id)
+          .filter(p => {
+            return result.records.some(rec => 
+              rec.get('childFunctions').some(f => 
+                f.properties.id === childId && 
+                rec.get('childInputParameters').some(cp => cp.properties.id === p.id)
+              )
+            );
+          });
+        
+        const childWithParams = {
+          ...childFunction,
+          children: [],
+          inputParameters: childParams
+        };
+        
+        const parent = findFunction(parentId, hierarchy);
+        if (parent) {
+          // Check if already added
+          const existingChild = parent.children.find(c => c.id === childId);
+          if (!existingChild) {
+            parent.children.push(childWithParams);
+          }
+        }
+      }
+    }
+    
+    // Handle direct parent-child relationships
+    for (const childFunction of childFunctions) {
+      // Find if this function is already in hierarchy
+      const existingInHierarchy = findFunction(childFunction.id, hierarchy);
+      
+      // If not found in hierarchy, it's a direct child of root
+      if (!existingInHierarchy && paths.length === 0) {
+        // Find parameters that are inputs to this child function
+        const childParams = childInputParameters
+          .filter(p => p.id)
+          .filter(p => {
+            return result.records.some(rec => 
+              rec.get('childFunctions').some(f => 
+                f.properties.id === childFunction.id && 
+                rec.get('childInputParameters').some(cp => cp.properties.id === p.id)
+              )
+            );
+          });
+          
+        hierarchy.children.push({
+          ...childFunction,
+          children: [],
+          inputParameters: childParams
+        });
+      }
+    }
+    
+    res.status(200).json(hierarchy);
+    
+  } catch (error) {
+    console.error(`Error retrieving hierarchy for function ${id}:`, error);
+    res.status(500).json({ error: 'Failed to retrieve function hierarchy', details: error.message });
+  } finally {
+    await session.close();
+  }
+});
+
 // TODO: Add routes for GET /:id, PUT /:id, DELETE /:id
 // TODO: Add routes for managing :HAS_CHILD relationships within Functions
 

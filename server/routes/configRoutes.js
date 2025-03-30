@@ -1,5 +1,6 @@
 const express = require('express');
 const driver = require('../db');
+const neo4j = require('neo4j-driver');
 
 const router = express.Router();
 
@@ -22,9 +23,34 @@ const DEFAULT_CONFIG = {
   allowOnlyAdjacentConnections: true
 };
 
+// Helper to check if the database is accessible
+const checkDbConnection = async () => {
+  const session = driver.session();
+  try {
+    // Run a simple query to check connection
+    await session.run('RETURN 1 as num');
+    return true;
+  } catch (error) {
+    console.error('Database connection check failed:', error);
+    return false;
+  } finally {
+    await session.close();
+  }
+};
+
 // GET /api/config - Retrieve the current app configuration (or create default)
 router.get('/', async (req, res) => {
-  const session = driver.session({ database: 'neo4j' });
+  // First check database connectivity
+  const isConnected = await checkDbConnection();
+  if (!isConnected) {
+    return res.status(503).json({
+      error: 'Database connection failure',
+      details: 'Unable to connect to the database. Please check that Neo4j is running.',
+      status: 'disconnected'
+    });
+  }
+
+  const session = driver.session();
   try {
     // Try to find the existing config node
     const result = await session.run(
@@ -34,7 +60,25 @@ router.get('/', async (req, res) => {
 
     if (result.records.length > 0) {
       // Config found, return it
-      const existingConfig = result.records[0].get('c').properties;
+      const configNode = result.records[0].get('c');
+      const existingConfig = {};
+      
+      // Safely extract properties, converting Neo4j types
+      if (configNode && configNode.properties) {
+        Object.keys(configNode.properties).forEach(key => {
+          const value = configNode.properties[key];
+          if (key === 'domainOrder' && Array.isArray(value)) {
+            // Handle array values
+            existingConfig[key] = value;
+          } else if (neo4j.isInt(value)) {
+            // Convert Neo4j integers to JavaScript numbers
+            existingConfig[key] = value.toNumber();
+          } else {
+            existingConfig[key] = value;
+          }
+        });
+      }
+      
       // Ensure all default keys exist in the stored config, adding them if missing
       const mergedConfig = {
          ...DEFAULT_CONFIG, // Start with defaults
@@ -48,6 +92,7 @@ router.get('/', async (req, res) => {
 
     } else {
       // No config found, create the default one
+      console.log('No configuration found, creating default configuration...');
       const writeResult = await session.run(
         `CREATE (c:AppConfig { 
             id: $id,
@@ -65,12 +110,35 @@ router.get('/', async (req, res) => {
       if (writeResult.records.length === 0) {
          throw new Error('Failed to create default configuration');
       }
-      const createdConfig = writeResult.records[0].get('c').properties;
+      
+      const configNode = writeResult.records[0].get('c');
+      const createdConfig = {};
+      
+      // Safely extract properties from the created node
+      if (configNode && configNode.properties) {
+        Object.keys(configNode.properties).forEach(key => {
+          const value = configNode.properties[key];
+          if (key === 'domainOrder' && Array.isArray(value)) {
+            // Handle array values
+            createdConfig[key] = value;
+          } else if (neo4j.isInt(value)) {
+            // Convert Neo4j integers to JavaScript numbers
+            createdConfig[key] = value.toNumber();
+          } else {
+            createdConfig[key] = value;
+          }
+        });
+      }
+      
       res.status(200).json(createdConfig); // Return the newly created default config
     }
   } catch (error) {
     console.error('Error retrieving/creating app configuration:', error);
-    res.status(500).json({ error: 'Failed to get application configuration', details: error.message });
+    res.status(500).json({ 
+      error: 'Failed to get application configuration', 
+      details: error.message,
+      status: 'error' 
+    });
   } finally {
     await session.close();
   }
@@ -85,7 +153,17 @@ router.put('/', async (req, res) => {
      return res.status(400).json({ error: 'Invalid configuration data provided.' });
    }
 
-   const session = driver.session({ database: 'neo4j' });
+   // First check database connectivity
+   const isConnected = await checkDbConnection();
+   if (!isConnected) {
+     return res.status(503).json({
+       error: 'Database connection failure',
+       details: 'Unable to connect to the database. Please check that Neo4j is running.',
+       status: 'disconnected'
+     });
+   }
+
+   const session = driver.session();
    try {
         // Prepare updates - only include fields that were provided in the request
         const updates = {};
@@ -119,16 +197,37 @@ router.put('/', async (req, res) => {
             return res.status(404).json({ error: 'Configuration node not found. Cannot update.' });
         }
 
-        const updatedConfig = result.records[0].get('c').properties;
+        const configNode = result.records[0].get('c');
+        const updatedConfig = {};
+        
+        // Safely extract properties
+        if (configNode && configNode.properties) {
+          Object.keys(configNode.properties).forEach(key => {
+            const value = configNode.properties[key];
+            if (key === 'domainOrder' && Array.isArray(value)) {
+              // Handle array values
+              updatedConfig[key] = value;
+            } else if (neo4j.isInt(value)) {
+              // Convert Neo4j integers to JavaScript numbers
+              updatedConfig[key] = value.toNumber();
+            } else {
+              updatedConfig[key] = value;
+            }
+          });
+        }
+        
         res.status(200).json(updatedConfig);
 
    } catch (error) {
         console.error('Error updating app configuration:', error);
-        res.status(500).json({ error: 'Failed to update application configuration', details: error.message });
+        res.status(500).json({ 
+          error: 'Failed to update application configuration', 
+          details: error.message,
+          status: 'error'
+        });
    } finally {
         await session.close();
    }
 });
-
 
 module.exports = router; 

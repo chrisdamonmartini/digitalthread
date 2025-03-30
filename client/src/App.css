@@ -472,3 +472,98 @@ main {
 .react-flow__node-filter {
   z-index: 10;
 }
+
+/* API Error Message Component Styles */
+.api-error-message {
+  background-color: #fff5f5;
+  border: 1px solid #ffcccc;
+  border-radius: 4px;
+  padding: 15px;
+  margin: 20px auto;
+  max-width: 600px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.api-error-message h3 {
+  color: #e53e3e;
+  margin-top: 0;
+  border-bottom: 1px solid #ffcccc;
+  padding-bottom: 8px;
+}
+
+.api-error-message .error-text {
+  color: #e53e3e;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.api-error-message .error-solutions {
+  margin-top: 15px;
+}
+
+.api-error-message .error-solutions ul {
+  padding-left: 20px;
+  margin-top: 5px;
+}
+
+.api-error-message .error-solutions li {
+  margin-bottom: 5px;
+  font-size: 0.9em;
+}
+
+.api-error-message .api-info {
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 1px dashed #ffcccc;
+  font-size: 0.85em;
+  color: #666;
+}
+
+.api-error-message .retry-button {
+  background-color: #4299e1;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 15px;
+  transition: background-color 0.2s;
+}
+
+.api-error-message .retry-button:hover {
+  background-color: #3182ce;
+}
+
+.api-error-message .retry-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5);
+}
+
+/* Loading container and message styles */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.loading-message {
+  background-color: white;
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 400px;
+}
+
+.loading-message h2 {
+  margin-top: 0;
+  color: #333;
+}
+
+.loading-message p {
+  margin-bottom: 20px;
+  color: #666;
+}

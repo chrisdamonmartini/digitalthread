@@ -38,9 +38,14 @@ const IconPreview = ({ iconType, size = 24, customUrl = null }) => {
           width: size,
           height: size,
           verticalAlign: 'middle',
-          objectFit: 'contain'
+          objectFit: 'contain',
+          backgroundColor: 'rgba(255,255,255,0.8)',
+          borderRadius: '4px'
         }}
-        onError={() => setHasError(true)}
+        onError={(e) => {
+          console.error('Failed to load custom icon:', e);
+          setHasError(true);
+        }}
       />
     );
   }
@@ -102,9 +107,22 @@ const IconPreview = ({ iconType, size = 24, customUrl = null }) => {
           borderRadius: '50%',
           backgroundColor: '#ccc',
           display: 'inline-block',
-          verticalAlign: 'middle'
+          verticalAlign: 'middle',
+          position: 'relative',
+          overflow: 'hidden'
         }}
-      />
+      >
+        {hasError && (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            fontSize: Math.max(8, size / 3),
+            color: '#666'
+          }}>!</div>
+        )}
+      </div>
     );
   }
   
@@ -118,7 +136,10 @@ const IconPreview = ({ iconType, size = 24, customUrl = null }) => {
         verticalAlign: 'middle',
         objectFit: 'contain'
       }}
-      onError={() => setHasError(true)}
+      onError={(e) => {
+        console.error(`Failed to load icon ${iconType}:`, e);
+        setHasError(true);
+      }}
     />
   );
 };

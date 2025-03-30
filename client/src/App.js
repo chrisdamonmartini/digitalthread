@@ -20,7 +20,140 @@ import FlowControls from './components/FlowControls'; // Import flow controls
 import FilterNode from './components/FilterNode'; // Import the FilterNode component
 import DomainConfigPanel from './components/DomainConfigPanel'; // Import the DomainConfigPanel component
 
-const API_URL = 'http://localhost:3001/api';
+// API Error Message Component
+const APIErrorMessage = ({ error, onRetry }) => {
+  // Extract the error message and status
+  const errorMsg = error || 'Unknown error occurred';
+  const isConnectionError = errorMsg.includes('connection') || 
+                           errorMsg.includes('network') || 
+                           errorMsg.includes('timed out') ||
+                           errorMsg.includes('Failed to fetch');
+  const isInitializationError = errorMsg.includes('before initialization') ||
+                               errorMsg.includes('Cannot access');
+  
+  // Determine potential solutions based on error type
+  let possibleSolutions = [];
+  
+  if (isInitializationError) {
+    possibleSolutions = [
+      'Refresh the page to completely reload the application',
+      'Check that the API server is running at ' + getApiUrl(),
+      'Verify the database connection in the server',
+      'Try the health check endpoint at ' + getApiUrl() + '/health'
+    ];
+  } else if (isConnectionError) {
+    possibleSolutions = [
+      'Check that the API server is running',
+      'Verify the database connection in the server',
+      'Ensure the API URL is correct',
+      'Check for any firewall or network issues'
+    ];
+  } else {
+    possibleSolutions = [
+      'Check server logs for more details',
+      'Verify your request parameters',
+      'Ensure you have the correct permissions'
+    ];
+  }
+  
+  return (
+    <div className="api-error-message">
+      <h3>API Error</h3>
+      <p className="error-text">{errorMsg}</p>
+      <div className="error-solutions">
+        <p><strong>Possible solutions:</strong></p>
+        <ul>
+          {possibleSolutions.map((solution, idx) => (
+            <li key={idx}>{solution}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="api-info">
+        <p><strong>API URL:</strong> {getApiUrl()}</p>
+      </div>
+      {onRetry && (
+        <button className="retry-button" onClick={onRetry}>
+          Retry Connection
+        </button>
+      )}
+    </div>
+  );
+};
+
+// Update API URL configuration with more robust fallback
+const DEFAULT_API_URL = 'http://localhost:3001/api';
+
+// Function to get API URL with fallbacks
+const getApiUrl = () => {
+  // Check if we have a stored or environment API URL
+  const storedApiUrl = localStorage.getItem('apiUrl');
+  const envApiUrl = process.env.REACT_APP_API_URL;
+  
+  // Return the first available URL with priority
+  return envApiUrl || storedApiUrl || DEFAULT_API_URL;
+};
+
+// Use a function to create API endpoints to allow for dynamic changes
+const createApiEndpoint = (path) => {
+  return `${getApiUrl()}/${path}`;
+};
+
+// Global fetch wrapper with error handling
+const fetchWithErrorHandling = async (endpoint, options = {}) => {
+  try {
+    // Add a timeout to the fetch request (5 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(endpoint, {
+      ...options,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId); // Clear the timeout if response is received
+    
+    // Always try to parse JSON, but handle cases where response is not JSON
+    let data;
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      data = await response.text();
+      try {
+        // Try to parse as JSON anyway in case content-type is wrong
+        data = JSON.parse(data);
+      } catch (e) {
+        // It's genuinely not JSON, keep as text
+      }
+    }
+    
+    if (!response.ok) {
+      // Handle HTTP errors
+      const error = new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+    
+    return data;
+  } catch (error) {
+    // Handle network errors, timeouts, and parsing errors
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your connection and try again.');
+    }
+    
+    // Enhance error with more information if we have it
+    if (!error.status) {
+      error.message = `Network or server error: ${error.message}`;
+    }
+    
+    // Log the error for debugging
+    console.error('API request failed:', error);
+    
+    // Rethrow to be handled by the calling function
+    throw error;
+  }
+};
 
 // Helper to determine the relationship type 
 function getRelationshipType(sourceDomain, targetDomain) {
@@ -54,7 +187,9 @@ function FlowView() {
   
   const [linkingState, setLinkingState] = useState({ fromId: null, fromDomain: null });
   const [error, setError] = useState(null); 
-  const [successMessage, setSuccessMessage] = useState(null); 
+  const [successMessage, setSuccessMessage] = useState(null);
+  // Add appInitialized state here early in the component
+  const [appInitialized, setAppInitialized] = useState(false);
   const [nodeDisplayMode, setNodeDisplayMode] = useState('idAndTitle'); // 'full', 'idAndTitle', 'titleOnly'
   // Add state for relationship lines toggle
   const [showRelationshipLines, setShowRelationshipLines] = useState(false);
@@ -74,6 +209,7 @@ function FlowView() {
   }), []);
 
   const [activeDomainConfig, setActiveDomainConfig] = useState(null); // Track which domain is being configured
+  const [retryCount, setRetryCount] = useState(0); // Add retry count state
 
   // --- useEffect for successMessage (Keep for linking feedback) --- 
   useEffect(() => {
@@ -83,38 +219,33 @@ function FlowView() {
     }
   }, [successMessage]);
 
-  // --- Data Fetching (Keep fetch functions) --- 
+  // --- Data Fetching functions --- 
   const fetchConfig = useCallback(async () => {
-    setIsLoadingConfig(true); // Make sure this setter exists
+    setIsLoadingConfig(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/config`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      // Ensure we set the state variables added back
-      setAppConfig(data); 
-      setLocalDomainOrder(data.domainOrder || []); 
+      const data = await fetchWithErrorHandling(createApiEndpoint('config'));
+      setAppConfig(data);
+      setLocalDomainOrder(data.domainOrder || []);
     } catch (e) {
       console.error("Error fetching config:", e);
-      setError('Failed to load application configuration.');
-      setAppConfig({}); // Or null, depending on how downstream code handles error
+      setError(`Failed to load application configuration: ${e.message}`);
+      setAppConfig({});
       setLocalDomainOrder([]);
     } finally {
-      setIsLoadingConfig(false); // Ensure this setter exists
+      setIsLoadingConfig(false);
     }
-  }, [setError, setAppConfig, setLocalDomainOrder, setIsLoadingConfig]); // Add setters to dependencies
+  }, []);
 
   const fetchMissions = useCallback(async () => {
     setIsLoadingMissions(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/missions`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
+      const data = await fetchWithErrorHandling(createApiEndpoint('missions'));
       setMissions(data);
     } catch (e) {
       console.error("Error fetching missions:", e);
-      setError('Failed to load missions.');
+      setError(`Failed to load missions: ${e.message}`);
     } finally {
       setIsLoadingMissions(false);
     }
@@ -124,13 +255,11 @@ function FlowView() {
     setIsLoadingScenarios(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/scenarios`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
+      const data = await fetchWithErrorHandling(createApiEndpoint('scenarios'));
       setScenarios(data);
     } catch (e) {
       console.error("Error fetching scenarios:", e);
-      setError('Failed to load scenarios.');
+      setError(`Failed to load scenarios: ${e.message}`);
     } finally {
       setIsLoadingScenarios(false);
     }
@@ -140,13 +269,11 @@ function FlowView() {
     setIsLoadingRequirements(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/requirements`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
+      const data = await fetchWithErrorHandling(createApiEndpoint('requirements'));
       setRequirements(data);
     } catch (e) {
       console.error("Error fetching requirements:", e);
-      setError('Failed to load requirements.');
+      setError(`Failed to load requirements: ${e.message}`);
     } finally {
       setIsLoadingRequirements(false);
     }
@@ -156,13 +283,11 @@ function FlowView() {
     setIsLoadingParameters(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/parameters`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
+      const data = await fetchWithErrorHandling(createApiEndpoint('parameters'));
       setParameters(data);
     } catch (e) {
       console.error("Error fetching parameters:", e);
-      setError('Failed to load parameters.');
+      setError(`Failed to load parameters: ${e.message}`);
     } finally {
       setIsLoadingParameters(false);
     }
@@ -172,17 +297,67 @@ function FlowView() {
     setIsLoadingFunctions(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/functions`); // Use plural path
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
+      const data = await fetchWithErrorHandling(createApiEndpoint('functions')); // Use plural path
       setFunctions(data);
     } catch (e) {
       console.error("Error fetching functions:", e);
-      setError('Failed to load functions.');
+      setError(`Failed to load functions: ${e.message}`);
     } finally {
       setIsLoadingFunctions(false);
     }
   }, []);
+
+  // --- Retry function for all connections ---
+  const retryAllConnections = useCallback(() => {
+    setError(null); // Clear existing errors
+    console.log('Retrying all API connections...');
+    
+    // Show a temporary message
+    setSuccessMessage('Retrying API connections...');
+    
+    // Increment retry count
+    setRetryCount(prev => prev + 1);
+    
+    // Fetch all data
+    Promise.all([
+      fetchConfig(),
+      fetchMissions(),
+      fetchScenarios(),
+      fetchRequirements(),
+      fetchParameters(),
+      fetchFunctions()
+    ]).then(() => {
+      // Set a success message if all succeed
+      setSuccessMessage('Successfully reconnected to API!');
+      setAppInitialized(true);
+    }).catch(err => {
+      console.error("Error during retry:", err);
+      // Error will be set by the individual fetch functions
+    });
+  }, [
+    fetchConfig, 
+    fetchMissions, 
+    fetchScenarios, 
+    fetchRequirements, 
+    fetchParameters, 
+    fetchFunctions,
+    setSuccessMessage,
+    setError,
+    setRetryCount,
+    setAppInitialized
+  ]);
+
+  // Define the initialization function - must be defined before the useEffect
+  const initializeApp = useCallback(() => {
+    return Promise.all([
+      fetchConfig(),
+      fetchMissions(),
+      fetchScenarios(),
+      fetchRequirements(),
+      fetchParameters(),
+      fetchFunctions()
+    ]);
+  }, [fetchConfig, fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]);
 
   // Fetch initial data
   useEffect(() => {
@@ -194,21 +369,45 @@ function FlowView() {
        fetchRequirements(),
        fetchParameters(),
        fetchFunctions()
-    ]).catch(err => {
+    ]).then(() => {
+       setAppInitialized(true); // Mark initialization as successful
+    }).catch(err => {
        console.error("Error during initial data fetch:", err);
-       // Handle collective error if needed
+       // Error will be handled by individual fetch functions
     });
-  }, []); // Empty array: Run only once on mount
+  }, [fetchConfig, fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]); 
 
+  // Auto-retry logic for initialization
+  useEffect(() => {
+    const MAX_RETRIES = 2;
+    
+    // Skip if we've already initialized successfully or exceeded max retries
+    if (appInitialized || retryCount > MAX_RETRIES) return;
+    
+    // Only attempt retry after a delay (on retry count changes)
+    if (retryCount > 0) {
+      const timer = setTimeout(() => {
+        console.log(`Initialization attempt ${retryCount}/${MAX_RETRIES}`);
+        initializeApp().then(() => {
+          setAppInitialized(true);
+        }).catch(err => {
+          console.error("Initialization attempt failed:", err);
+        });
+      }, retryCount * 2000); // Increasing backoff
+      
+      return () => clearTimeout(timer);
+    }
+  }, [appInitialized, retryCount, initializeApp]);
+  
   // --- Relationship Logic (Keep for linking interaction) --- 
-  const startLinking = (fromId, fromDomain) => {
+  const startLinking = useCallback((fromId, fromDomain) => {
       setLinkingState({ fromId, fromDomain });
       setSuccessMessage(null); // Clear previous success message
       setError(null); // Clear previous error message
       console.log(`Start linking from ${fromDomain} item: ${fromId}`);
-  };
+  }, [setLinkingState, setSuccessMessage, setError]);
 
-  const completeLink = async (toId, toDomain) => {
+  const completeLink = useCallback(async (toId, toDomain) => {
       if (!linkingState.fromId || !linkingState.fromDomain) return;
       
       const { fromId, fromDomain } = linkingState;
@@ -218,7 +417,7 @@ function FlowView() {
       setError(null); // Clear previous errors
 
       try {
-          const response = await fetch(`${API_URL}/relationships`, {
+          const resultData = await fetchWithErrorHandling(createApiEndpoint('relationships'), {
               method: 'POST',
               headers: {
                  'Content-Type': 'application/json',
@@ -232,12 +431,6 @@ function FlowView() {
               })
           });
 
-          const resultData = await response.json(); // Always try to parse JSON
-
-          if (!response.ok) {
-              throw new Error(resultData.error || `HTTP error! status: ${response.status}`);
-          }
-
           console.log('Link created:', resultData);
           setSuccessMessage(resultData.message || 'Link created successfully!'); 
           // Optionally: Refresh data related to the linked items if needed
@@ -248,12 +441,12 @@ function FlowView() {
       } finally {
           setLinkingState({ fromId: null, fromDomain: null }); // Reset linking state
       }
-  };
+  }, [linkingState, setError, setSuccessMessage, setLinkingState]);
 
-  const cancelLinking = () => {
+  const cancelLinking = useCallback(() => {
       setLinkingState({ fromId: null, fromDomain: null });
       console.log('Linking cancelled');
-  };
+  }, [setLinkingState]);
 
   // Function to update filter for a specific domain
   const updateDomainFilter = useCallback((domainId, filterText) => {
@@ -261,7 +454,7 @@ function FlowView() {
       ...prev,
       [domainId]: filterText
     }));
-  }, []);
+  }, [setDomainFilters]);
 
   // Keep track of original domain positions
   const storeDomainPosition = useCallback((nodeId, position) => {
@@ -269,18 +462,18 @@ function FlowView() {
       ...prev,
       [nodeId]: position
     }));
-  }, []);
+  }, [setDomainPositions]);
 
   // Function to handle settings icon click
   const handleDomainSettingsClick = useCallback((domainName) => {
     setActiveDomainConfig(domainName);
     console.log(`Opening configuration for domain: ${domainName}`);
-  }, []);
+  }, [setActiveDomainConfig]);
   
   // Function to close domain config panel
   const closeDomainConfigPanel = useCallback(() => {
     setActiveDomainConfig(null);
-  }, []);
+  }, [setActiveDomainConfig]);
 
   // --- useEffect to Calculate Nodes and Edges --- 
   useEffect(() => {
@@ -785,49 +978,65 @@ function FlowView() {
   // --- Main JSX for Flow View --- 
   return (
     <div className="flow-view-container" style={{ height: '100%' }}>
-      {/* React Flow Canvas */} 
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
-        onNodeClick={(event, node) => {
-          // Handle click on settings icon
-          if (node.id.startsWith('settings-icon-') && node.data.onClick) {
-            node.data.onClick();
-          }
-        }}
-        nodeTypes={nodeTypes}
-        fitView
-        snapToGrid={true}
-        snapGrid={[20, 20]}
-      >
-        <Background />
-        <Controls />
-        <MiniMap />
-        <Panel position="top-right">
-          {/* ... panel content ... */}
-        </Panel>
-      </ReactFlow>
+      {/* Display API Error Message if there's an error */}
+      {error && <APIErrorMessage error={error} onRetry={retryAllConnections} />}
       
-      {/* Flow Controls with Legend and Display Options */}
-      <FlowControls 
-        nodeDisplayMode={nodeDisplayMode}
-        setNodeDisplayMode={setNodeDisplayMode}
-        showRelationshipLines={showRelationshipLines}
-        setShowRelationshipLines={setShowRelationshipLines}
-        showDomainIcons={showDomainIcons}
-        setShowDomainIcons={setShowDomainIcons}
-      />
-      
-      {/* Domain Configuration Panel */}
-      <DomainConfigPanel 
-        isOpen={activeDomainConfig !== null}
-        onClose={closeDomainConfigPanel}
-        domainName={activeDomainConfig || ''}
-      />
+      {/* Show loading UI if not initialized */}
+      {!appInitialized && isLoadingConfig ? (
+        <div className="loading-container">
+          <div className="loading-message">
+            <h2>Connecting to Digital Thread API...</h2>
+            <p>Please ensure the server is running.</p>
+            <button className="retry-button" onClick={retryAllConnections}>Retry Connection</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* React Flow Canvas */} 
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeDrag={onNodeDrag}
+            onNodeDragStop={onNodeDragStop}
+            onNodeClick={(event, node) => {
+              // Handle click on settings icon
+              if (node.id.startsWith('settings-icon-') && node.data.onClick) {
+                node.data.onClick();
+              }
+            }}
+            nodeTypes={nodeTypes}
+            fitView
+            snapToGrid={true}
+            snapGrid={[20, 20]}
+          >
+            <Background />
+            <Controls />
+            <MiniMap />
+            <Panel position="top-right">
+              {/* ... panel content ... */}
+            </Panel>
+          </ReactFlow>
+          
+          {/* Flow Controls with Legend and Display Options */}
+          <FlowControls 
+            nodeDisplayMode={nodeDisplayMode}
+            setNodeDisplayMode={setNodeDisplayMode}
+            showRelationshipLines={showRelationshipLines}
+            setShowRelationshipLines={setShowRelationshipLines}
+            showDomainIcons={showDomainIcons}
+            setShowDomainIcons={setShowDomainIcons}
+          />
+          
+          {/* Domain Configuration Panel */}
+          <DomainConfigPanel 
+            isOpen={activeDomainConfig !== null}
+            onClose={closeDomainConfigPanel}
+            domainName={activeDomainConfig || ''}
+          />
+        </>
+      )}
     </div>
   );
 }

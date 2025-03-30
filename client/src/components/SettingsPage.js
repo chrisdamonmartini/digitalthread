@@ -273,7 +273,7 @@ const ItemManagementSettings = () => {
       const response = await axios.post(`${API_URL}/${domainType}s/bulk`, {
         prefix: bulkPrefix,
         count: bulkCount,
-        descriptionTemplate: bulkDescriptionTemplate || `${bulkPrefix} item #{i}`
+        descriptionTemplate: bulkDescriptionTemplate || `${bulkPrefix} item #i`
       });
       
       if (response.status === 201) {
@@ -384,7 +384,7 @@ const ItemManagementSettings = () => {
               rows={3}
             />
             <small className="template-help">
-              Use {"{i}"} to include the item number, e.g., "Test requirement number {"{i}"}"
+              Use {'{'}'i'{'}'} to include the item number, e.g., "Test requirement number {'{'}'i'{'}'}"
             </small>
           </div>
           

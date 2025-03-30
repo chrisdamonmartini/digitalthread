@@ -8,6 +8,8 @@ const CONFIG_NODE_ID = 'singleton'; // Fixed ID for the config node
 router.get('/', async (req, res) => {
   const session = driver.session({ database: 'neo4j' });
   try {
+    console.log('GET /api/settings - Fetching application settings...');
+    
     const result = await session.run(
       `MATCH (c:AppConfig {id: $id}) 
        RETURN c.allowOnlyAdjacentConnections AS adjacentOnly`,
@@ -15,15 +17,18 @@ router.get('/', async (req, res) => {
     );
 
     if (result.records.length === 0) {
-      return res.status(404).json({ error: 'Settings not found' });
+      console.log('Settings not found - returning defaults');
+      // Return default settings if not found
+      return res.status(200).json({
+        adjacentOnly: true
+      });
     }
 
     const settings = {
       adjacentOnly: result.records[0].get('adjacentOnly')
     };
 
-    // Add other settings properties here as needed
-
+    console.log('Settings found:', settings);
     res.status(200).json(settings);
   } catch (error) {
     console.error('Error fetching settings:', error);

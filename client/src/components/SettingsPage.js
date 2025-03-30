@@ -79,12 +79,23 @@ const DomainOrderSettings = () => {
     const fetchDomains = async () => {
       try {
         setLoading(true);
+        console.log('Fetching domains from API...');
         const response = await axios.get(`${API_URL}/domains`);
+        console.log('Domains API response:', response.data);
         setDomains(response.data);
         setLoading(false);
       } catch (err) {
         console.error('Error fetching domains:', err);
-        setError('Failed to load domains. Please try again.');
+        // Provide default domains if API fails
+        const defaultDomains = [
+          { id: 'Mission', name: 'Mission', type: 'mission', order: 0, color: DEFAULT_DOMAIN_COLORS['Mission'] },
+          { id: 'Scenario', name: 'Scenario', type: 'scenario', order: 1, color: DEFAULT_DOMAIN_COLORS['Scenario'] },
+          { id: 'Requirements', name: 'Requirements', type: 'requirement', order: 2, color: DEFAULT_DOMAIN_COLORS['Requirements'] },
+          { id: 'Parameter', name: 'Parameter', type: 'parameter', order: 3, color: DEFAULT_DOMAIN_COLORS['Parameter'] },
+          { id: 'Functions', name: 'Functions', type: 'function', order: 4, color: DEFAULT_DOMAIN_COLORS['Functions'] }
+        ];
+        setDomains(defaultDomains);
+        setError('Failed to load domains from server. Using defaults.');
         setLoading(false);
       }
     };
@@ -92,12 +103,16 @@ const DomainOrderSettings = () => {
     // Fetch adjacent only setting
     const fetchSettings = async () => {
       try {
+        console.log('Fetching settings from API...');
         const response = await axios.get(`${API_URL}/settings`);
+        console.log('Settings API response:', response.data);
         if (response.data && response.data.adjacentOnly !== undefined) {
           setAdjacentOnly(response.data.adjacentOnly);
         }
       } catch (err) {
         console.error('Error fetching settings:', err);
+        // Default to true if API fails
+        setAdjacentOnly(true);
       }
     };
 
@@ -207,15 +222,27 @@ const ItemManagementSettings = () => {
     const fetchDomains = async () => {
       try {
         setLoading(true);
+        console.log('Item Management: Fetching domains from API...');
         const response = await axios.get(`${API_URL}/domains`);
+        console.log('Item Management: Domains API response:', response.data);
         setDomains(response.data);
         if (response.data.length > 0) {
           setSelectedDomain(response.data[0].id);
         }
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching domains:', err);
-        setError('Failed to load domains. Please try again.');
+        console.error('Error fetching domains for item management:', err);
+        // Provide default domains if API fails
+        const defaultDomains = [
+          { id: 'Mission', name: 'Mission', type: 'mission' },
+          { id: 'Scenario', name: 'Scenario', type: 'scenario' },
+          { id: 'Requirements', name: 'Requirements', type: 'requirement' },
+          { id: 'Parameter', name: 'Parameter', type: 'parameter' },
+          { id: 'Functions', name: 'Functions', type: 'function' }
+        ];
+        setDomains(defaultDomains);
+        setSelectedDomain('Mission');
+        setError('Failed to load domains from server. Using defaults.');
         setLoading(false);
       }
     };

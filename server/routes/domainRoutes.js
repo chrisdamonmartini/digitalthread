@@ -7,16 +7,46 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   const session = driver.session({ database: 'neo4j' });
   try {
+    console.log('GET /api/domains - Fetching domain configuration...');
+    
     // First, get the domain order from config
     const configResult = await session.run(
       `MATCH (c:AppConfig {id: 'singleton'}) RETURN c.domainOrder AS domainOrder`
     );
 
-    if (configResult.records.length === 0) {
-      return res.status(404).json({ error: 'Domain configuration not found' });
+    if (configResult.records.length === 0 || !configResult.records[0].get('domainOrder')) {
+      console.log('Domain configuration not found - sending default domains');
+      // Return default domain list if no configuration is found
+      const defaultDomains = [
+        'Mission',
+        'Scenario',
+        'Requirements',
+        'Parameter',
+        'Functions',
+        'Logical',
+        'EBOM',
+        'Simulation Models',
+        'Simulations',
+        'Test Cases'
+      ];
+      
+      // Build a default response
+      const domains = defaultDomains.map((domain, index) => {
+        return {
+          id: domain,
+          name: domain,
+          type: domain.toLowerCase().replace(/\s+/g, ''),
+          order: index,
+          color: '#cccccc',
+          icon: ''
+        };
+      });
+      
+      return res.status(200).json(domains);
     }
 
     const domainOrder = configResult.records[0].get('domainOrder');
+    console.log('Found domain order:', domainOrder);
 
     // Get appearance settings for colors
     const appearanceResult = await session.run(

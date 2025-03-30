@@ -78,12 +78,131 @@
   padding-bottom: 5px;
 }
 
+.config-description {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 15px;
+  line-height: 1.4;
+}
+
 .domain-title-input {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 1rem;
+}
+
+/* Item selection interface */
+.item-selector {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.item-select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.add-item-button {
+  padding: 8px 15px;
+  background-color: #14364F;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.add-item-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.selected-items-list {
+  margin-top: 15px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 10px;
+  background-color: #f9f9f9;
+}
+
+.selected-items-list h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.no-items-message {
+  color: #777;
+  font-style: italic;
+  font-size: 0.9rem;
+  margin: 5px 0;
+}
+
+.selected-items-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.selected-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+
+.item-title {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.remove-item-button {
+  background: none;
+  border: none;
+  color: #dc3545;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.remove-item-button:hover {
+  background-color: rgba(220, 53, 69, 0.1);
+}
+
+.loading-indicator, .error-message {
+  padding: 10px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.9rem;
+  margin: 10px 0;
+}
+
+.loading-indicator {
+  background-color: #f8f9fa;
+  color: #666;
+}
+
+.error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
 }
 
 .color-picker {

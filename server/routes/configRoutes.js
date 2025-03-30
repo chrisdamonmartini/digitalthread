@@ -230,4 +230,106 @@ router.put('/', async (req, res) => {
    }
 });
 
+// GET /api/config/domain-display/:domainName
+// Get the display configuration for a specific domain
+router.get('/domain-display/:domainName', async (req, res) => {
+  const { domainName } = req.params;
+  
+  if (!domainName) {
+    return res.status(400).json({ error: 'Domain name is required' });
+  }
+  
+  const session = driver.session();
+  try {
+    // Check if a display configuration already exists for this domain
+    const result = await session.run(
+      `MATCH (c:DomainDisplayConfig {domainName: $domainName})
+       RETURN c.displayItems AS displayItems`,
+      { domainName }
+    );
+    
+    if (result.records.length === 0) {
+      // No configuration found, return an empty list
+      return res.json({ displayItems: [] });
+    }
+    
+    // Get display item IDs
+    const displayItemIds = result.records[0].get('displayItems') || [];
+    
+    // If there are display items, fetch their details
+    let displayItems = [];
+    if (displayItemIds.length > 0) {
+      // Dynamically determine the label to use based on domain name
+      // This assumes your domain nodes have labels that match their names
+      // Note: Neo4j is case-sensitive for labels, so we need to get the first character uppercase
+      let domainLabel = domainName;
+      if (domainLabel === 'Requirements') {
+        domainLabel = 'Requirement'; // Handle special case for Requirements label
+      } else if (domainLabel === 'Functions') {
+        domainLabel = 'Function'; // Handle special case for Functions label
+      } else if (domainLabel.endsWith('s')) {
+        // Remove trailing 's' for most domains
+        domainLabel = domainLabel.slice(0, -1);
+      }
+      
+      // Fetch the actual items
+      const itemsResult = await session.run(
+        `MATCH (item:${domainLabel})
+         WHERE item.id IN $itemIds
+         RETURN item`,
+        { itemIds: displayItemIds }
+      );
+      
+      displayItems = itemsResult.records.map(record => record.get('item').properties);
+    }
+    
+    res.json({ displayItems });
+  } catch (error) {
+    console.error(`Error retrieving ${domainName} display configuration:`, error);
+    res.status(500).json({ error: `Failed to retrieve ${domainName} display configuration`, details: error.message });
+  } finally {
+    session.close();
+  }
+});
+
+// PUT /api/config/domain-display/:domainName
+// Update the display configuration for a specific domain
+router.put('/domain-display/:domainName', async (req, res) => {
+  const { domainName } = req.params;
+  const { displayItems } = req.body;
+  
+  if (!domainName) {
+    return res.status(400).json({ error: 'Domain name is required' });
+  }
+  
+  if (!Array.isArray(displayItems)) {
+    return res.status(400).json({ error: 'displayItems must be an array of item IDs' });
+  }
+  
+  const session = driver.session();
+  try {
+    // Use MERGE to create or update the configuration
+    await session.run(
+      `MERGE (c:DomainDisplayConfig {domainName: $domainName})
+       SET c.displayItems = $displayItems,
+           c.updatedAt = datetime()
+       RETURN c`,
+      { 
+        domainName,
+        displayItems
+      }
+    );
+    
+    res.json({ 
+      success: true, 
+      message: `Successfully updated display configuration for ${domainName}` 
+    });
+  } catch (error) {
+    console.error(`Error updating ${domainName} display configuration:`, error);
+    res.status(500).json({ error: `Failed to update ${domainName} display configuration`, details: error.message });
+  } finally {
+    session.close();
+  }
+});
+
 module.exports = router; 

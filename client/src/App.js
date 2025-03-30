@@ -211,6 +211,10 @@ function FlowView() {
   const [activeDomainConfig, setActiveDomainConfig] = useState(null); // Track which domain is being configured
   const [retryCount, setRetryCount] = useState(0); // Add retry count state
 
+  // Add domainDisplayConfig state to store display configuration
+  const [domainDisplayConfig, setDomainDisplayConfig] = useState({});
+  const [isLoadingDisplayConfig, setIsLoadingDisplayConfig] = useState(true);
+
   // --- useEffect for successMessage (Keep for linking feedback) --- 
   useEffect(() => {
     if (successMessage) {
@@ -475,10 +479,80 @@ function FlowView() {
     setActiveDomainConfig(null);
   }, [setActiveDomainConfig]);
 
+  // Function to fetch domain display configurations
+  const fetchDomainDisplayConfigs = useCallback(async () => {
+    setIsLoadingDisplayConfig(true);
+    setError(null);
+    
+    const displayConfigMap = {};
+    
+    try {
+      // Fetch the display configuration for each domain
+      const fetchPromises = localDomainOrder.map(async (domainName) => {
+        try {
+          const response = await fetch(createApiEndpoint(`config/domain-display/${domainName}`));
+          
+          if (!response.ok) {
+            // If config doesn't exist yet, that's OK - we'll return an empty array
+            if (response.status === 404) {
+              return { domainName, displayItems: [] };
+            }
+            throw new Error(`Failed to fetch display config for ${domainName}`);
+          }
+          
+          const data = await response.json();
+          return { domainName, displayItems: data.displayItems || [] };
+        } catch (err) {
+          console.error(`Error fetching display config for ${domainName}:`, err);
+          return { domainName, displayItems: [], error: err.message };
+        }
+      });
+      
+      const results = await Promise.all(fetchPromises);
+      
+      // Create a map of domain names to display item IDs
+      results.forEach(result => {
+        displayConfigMap[result.domainName] = result.displayItems;
+      });
+      
+      setDomainDisplayConfig(displayConfigMap);
+    } catch (err) {
+      console.error('Error fetching domain display configurations:', err);
+      setError('Failed to load domain display configurations');
+    } finally {
+      setIsLoadingDisplayConfig(false);
+    }
+  }, [localDomainOrder, createApiEndpoint]);
+
+  // Add the fetch call to the useEffect for loading data
+  useEffect(() => {
+    if (localDomainOrder.length > 0) {
+      fetchDomainDisplayConfigs();
+    }
+  }, [localDomainOrder, fetchDomainDisplayConfigs]);
+
+  // Initialization and data loading effect
+  useEffect(() => {
+    if (!appInitialized && 
+        !isLoadingConfig && !isLoadingMissions && !isLoadingScenarios && 
+        !isLoadingRequirements && !isLoadingParameters && !isLoadingFunctions &&
+        !isLoadingDisplayConfig) {
+      // All data has been loaded, mark app as initialized
+      setAppInitialized(true);
+      console.log("Digital Thread data loaded successfully!");
+    }
+  }, [
+    appInitialized, isLoadingConfig, isLoadingMissions, isLoadingScenarios, 
+    isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
+    isLoadingDisplayConfig // Add display config loading state
+  ]);
+
   // --- useEffect to Calculate Nodes and Edges --- 
   useEffect(() => {
     // Check if data is still loading
-    if (isLoadingConfig || isLoadingMissions || isLoadingScenarios || isLoadingRequirements || isLoadingParameters || isLoadingFunctions || !appConfig) {
+    if (isLoadingConfig || isLoadingMissions || isLoadingScenarios || 
+        isLoadingRequirements || isLoadingParameters || isLoadingFunctions || 
+        isLoadingDisplayConfig || !appConfig) {
       console.log("Waiting for data to calculate hierarchical layout...");
       setNodes([]);
       setEdges([]);
@@ -545,7 +619,16 @@ function FlowView() {
 
         // --- Calculate required height for children recursively --- 
         let totalContentHeight = 0;
-        const topLevelItems = Array.from(itemMap.values()).filter(item => !childIdSet?.has(item.id));
+        
+        // Filter top-level items based on domain display configuration
+        let topLevelItems = Array.from(itemMap.values()).filter(item => !childIdSet?.has(item.id));
+        
+        // Apply domain display configuration filtering if available
+        const displayItemIds = domainDisplayConfig[domainName];
+        if (displayItemIds && displayItemIds.length > 0) {
+          // Only show items that are in the display configuration
+          topLevelItems = topLevelItems.filter(item => displayItemIds.includes(item.id));
+        }
         
         // Define calculateBranchHeight here so it can access nodeDisplayMode and other constants
         const calculateBranchHeight = (itemId) => {
@@ -905,6 +988,8 @@ function FlowView() {
     updateDomainFilter, // Add updateDomainFilter as a dependency
     setNodes, setEdges,
     handleDomainSettingsClick,
+    domainDisplayConfig,
+    isLoadingDisplayConfig, // Add loading state as dependency
   ]);
 
   // Define a function to handle when a node is dragged

@@ -10,6 +10,7 @@ import requirementsIcon from './icons/Requirements.svg';
 import parameterIcon from './icons/typeItemRevision48.svg';
 import functionsIcon from './icons/typeCaeBoundaryConditionItem48.svg';
 import searchIcon from './icons/cmdSearch16.svg'; // Import search icon for the filter box
+import settingsIcon from './icons/cmdSettings24.svg'; // Import settings icon for domain configuration
 
 import './App.css';
 import CustomNode from './components/CustomNode'; // Import CustomNode
@@ -17,6 +18,7 @@ import AppHeader from './components/AppHeader'; // Import new header
 import SettingsPage from './components/SettingsPage'; // Import settings page
 import FlowControls from './components/FlowControls'; // Import flow controls
 import FilterNode from './components/FilterNode'; // Import the FilterNode component
+import DomainConfigPanel from './components/DomainConfigPanel'; // Import the DomainConfigPanel component
 
 const API_URL = 'http://localhost:3001/api';
 
@@ -70,6 +72,8 @@ function FlowView() {
     custom: CustomNode,
     filter: FilterNode, // Register the FilterNode component
   }), []);
+
+  const [activeDomainConfig, setActiveDomainConfig] = useState(null); // Track which domain is being configured
 
   // --- useEffect for successMessage (Keep for linking feedback) --- 
   useEffect(() => {
@@ -265,6 +269,17 @@ function FlowView() {
       ...prev,
       [nodeId]: position
     }));
+  }, []);
+
+  // Function to handle settings icon click
+  const handleDomainSettingsClick = useCallback((domainName) => {
+    setActiveDomainConfig(domainName);
+    console.log(`Opening configuration for domain: ${domainName}`);
+  }, []);
+  
+  // Function to close domain config panel
+  const closeDomainConfigPanel = useCallback(() => {
+    setActiveDomainConfig(null);
   }, []);
 
   // --- useEffect to Calculate Nodes and Edges --- 
@@ -485,6 +500,36 @@ function FlowView() {
           }
         });
 
+        // Add settings icon to the domain header (right-justified)
+        newNodes.push({
+          id: `settings-icon-${parentNodeId}`,
+          parentNode: parentNodeId,
+          draggable: false,
+          selectable: true, // Make selectable to enable click events
+          position: { 
+            x: columnWidth - parentPadding - 24, // Right-justified (24 is the icon width)
+            y: parentPadding // Align with the title vertically
+          },
+          data: { 
+            label: null,
+            domainName: domainName,
+            onClick: () => handleDomainSettingsClick(domainName) // Use the handler function
+          },
+          style: {
+            width: 24,
+            height: 24,
+            backgroundImage: `url(${settingsIcon})`,
+            backgroundSize: 'contain',
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'center',
+            backgroundColor: 'transparent',
+            border: 'none',
+            outline: 'none',
+            cursor: 'pointer',
+            zIndex: 5
+          }
+        });
+
         // --- 4. Add Filter Input Box ---
         // Use filterBoxY already defined above
         
@@ -665,7 +710,8 @@ function FlowView() {
     isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
     domainFilters, // Add domainFilters as a dependency
     updateDomainFilter, // Add updateDomainFilter as a dependency
-    setNodes, setEdges
+    setNodes, setEdges,
+    handleDomainSettingsClick,
   ]);
 
   // Define a function to handle when a node is dragged
@@ -747,6 +793,12 @@ function FlowView() {
         onEdgesChange={onEdgesChange}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onNodeClick={(event, node) => {
+          // Handle click on settings icon
+          if (node.id.startsWith('settings-icon-') && node.data.onClick) {
+            node.data.onClick();
+          }
+        }}
         nodeTypes={nodeTypes}
         fitView
         snapToGrid={true}
@@ -768,6 +820,13 @@ function FlowView() {
         setShowRelationshipLines={setShowRelationshipLines}
         showDomainIcons={showDomainIcons}
         setShowDomainIcons={setShowDomainIcons}
+      />
+      
+      {/* Domain Configuration Panel */}
+      <DomainConfigPanel 
+        isOpen={activeDomainConfig !== null}
+        onClose={closeDomainConfigPanel}
+        domainName={activeDomainConfig || ''}
       />
     </div>
   );

@@ -242,6 +242,85 @@ function FlowView() {
     }
   }, []);
 
+  // Function to fetch domain display configurations - moved up before where it's used
+  const fetchDomainDisplayConfigs = useCallback(async () => {
+    if (localDomainOrder.length === 0) {
+      console.log("No domains to fetch configs for");
+      setIsLoadingDisplayConfig(false);
+      return;
+    }
+    
+    console.log("Fetching domain display configs for domains:", localDomainOrder);
+    setIsLoadingDisplayConfig(true);
+    setError(null);
+    
+    const displayConfigMap = {};
+    const colorMap = {};
+    
+    try {
+      // Fetch the display configuration for each domain
+      const fetchPromises = localDomainOrder.map(async (domainName) => {
+        try {
+          const response = await fetch(createApiEndpoint(`config/domain-display/${domainName}`));
+          
+          if (!response.ok) {
+            // If config doesn't exist yet, that's OK - we'll return an empty array
+            if (response.status === 404) {
+              return { domainName, displayItems: [], domainColor: '#14364F' };
+            }
+            throw new Error(`Failed to fetch display config for ${domainName}`);
+          }
+          
+          const data = await response.json();
+          console.log(`Received display config for ${domainName}:`, data);
+          
+          // Handle both the array of IDs structure and the full items structure
+          let displayItems = [];
+          if (data.displayItems) {
+            // If displayItems is an array of objects with 'id' properties, extract just the IDs
+            if (Array.isArray(data.displayItems) && data.displayItems.length > 0 && typeof data.displayItems[0] === 'object') {
+              displayItems = data.displayItems.map(item => item.id);
+            } else {
+              // Otherwise, assume it's already an array of IDs
+              displayItems = Array.isArray(data.displayItems) ? data.displayItems : [];
+            }
+          }
+          
+          return { 
+            domainName, 
+            displayItems,
+            domainColor: data.domainColor || '#14364F'
+          };
+        } catch (err) {
+          console.error(`Error fetching display config for ${domainName}:`, err);
+          return { domainName, displayItems: [], domainColor: '#14364F', error: err.message };
+        }
+      });
+      
+      const results = await Promise.all(fetchPromises);
+      
+      // Create maps of domain names to display items and colors
+      results.forEach(result => {
+        // Store the actual array of display item IDs
+        displayConfigMap[result.domainName] = result.displayItems || [];
+        colorMap[result.domainName] = result.domainColor || '#14364F';
+        
+        console.log(`Stored display config for ${result.domainName}: ${result.displayItems?.length || 0} items, color: ${result.domainColor}`);
+      });
+      
+      console.log("Created display config map:", displayConfigMap);
+      console.log("Created color map:", colorMap);
+      
+      setDomainDisplayConfig(displayConfigMap);
+      setDomainColors(colorMap);
+    } catch (err) {
+      console.error('Error fetching domain display configurations:', err);
+      setError('Failed to load domain display configurations');
+    } finally {
+      setIsLoadingDisplayConfig(false);
+    }
+  }, [localDomainOrder, createApiEndpoint]);
+
   const fetchMissions = useCallback(async () => {
     setIsLoadingMissions(true);
     setError(null);
@@ -352,7 +431,14 @@ function FlowView() {
     setAppInitialized
   ]);
 
-  // Define the initialization function - must be defined before the useEffect
+  // When a domain config panel is closed, refresh the configurations
+  const closeDomainConfigPanel = useCallback(() => {
+    setActiveDomainConfig(null);
+    // Refresh configs when panel is closed to ensure UI reflects any changes
+    fetchDomainDisplayConfigs();
+  }, [setActiveDomainConfig, fetchDomainDisplayConfigs]);
+
+  // Initialize app function
   const initializeApp = useCallback(() => {
     return Promise.all([
       fetchConfig(),
@@ -364,24 +450,41 @@ function FlowView() {
     ]);
   }, [fetchConfig, fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]);
 
-  // Fetch initial data
+  // Separate useEffects for each data loading step
+  // 1. Initial data load
   useEffect(() => {
-    // Fetch all data initially
-    Promise.all([
-       fetchConfig(),
-       fetchMissions(),
-       fetchScenarios(),
-       fetchRequirements(),
-       fetchParameters(),
-       fetchFunctions()
-    ]).then(() => {
-       setAppInitialized(true); // Mark initialization as successful
+    console.log("Starting initial data fetch");
+    initializeApp().then(() => {
+      console.log("Initial data fetch complete");
     }).catch(err => {
-       console.error("Error during initial data fetch:", err);
-       // Error will be handled by individual fetch functions
+      console.error("Error during initial data fetch:", err);
     });
-  }, [fetchConfig, fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]); 
+  }, [initializeApp]);
 
+  // 2. Check when domain order is loaded and fetch configs
+  useEffect(() => {
+    if (localDomainOrder.length > 0) {
+      console.log("Domain order loaded:", localDomainOrder);
+      fetchDomainDisplayConfigs();
+    }
+  }, [localDomainOrder, fetchDomainDisplayConfigs]);
+
+  // 3. Mark app as initialized when all data is ready
+  useEffect(() => {
+    if (!appInitialized && 
+        !isLoadingConfig && !isLoadingMissions && !isLoadingScenarios && 
+        !isLoadingRequirements && !isLoadingParameters && !isLoadingFunctions &&
+        !isLoadingDisplayConfig) {
+      console.log("All data loaded, marking app as initialized");
+      setAppInitialized(true);
+      console.log("Digital Thread data loaded successfully!");
+    }
+  }, [
+    appInitialized, isLoadingConfig, isLoadingMissions, isLoadingScenarios, 
+    isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
+    isLoadingDisplayConfig
+  ]);
+  
   // Auto-retry logic for initialization
   useEffect(() => {
     const MAX_RETRIES = 2;
@@ -394,7 +497,8 @@ function FlowView() {
       const timer = setTimeout(() => {
         console.log(`Initialization attempt ${retryCount}/${MAX_RETRIES}`);
         initializeApp().then(() => {
-          setAppInitialized(true);
+          // Don't set appInitialized here - let the loading effect handle it
+          console.log("Retry initialization successful");
         }).catch(err => {
           console.error("Initialization attempt failed:", err);
         });
@@ -475,88 +579,6 @@ function FlowView() {
     console.log(`Opening configuration for domain: ${domainName}`);
   }, [setActiveDomainConfig]);
   
-  // Function to close domain config panel
-  const closeDomainConfigPanel = useCallback(() => {
-    setActiveDomainConfig(null);
-    // Refresh configs when panel is closed to ensure UI reflects any changes
-    fetchDomainDisplayConfigs();
-  }, [setActiveDomainConfig, fetchDomainDisplayConfigs]);
-
-  // Function to fetch domain display configurations
-  const fetchDomainDisplayConfigs = useCallback(async () => {
-    setIsLoadingDisplayConfig(true);
-    setError(null);
-    
-    const displayConfigMap = {};
-    const colorMap = {};
-    
-    try {
-      // Fetch the display configuration for each domain
-      const fetchPromises = localDomainOrder.map(async (domainName) => {
-        try {
-          const response = await fetch(createApiEndpoint(`config/domain-display/${domainName}`));
-          
-          if (!response.ok) {
-            // If config doesn't exist yet, that's OK - we'll return an empty array
-            if (response.status === 404) {
-              return { domainName, displayItems: [], domainColor: '#14364F' };
-            }
-            throw new Error(`Failed to fetch display config for ${domainName}`);
-          }
-          
-          const data = await response.json();
-          return { 
-            domainName, 
-            displayItems: data.displayItems || [],
-            domainColor: data.domainColor || '#14364F'
-          };
-        } catch (err) {
-          console.error(`Error fetching display config for ${domainName}:`, err);
-          return { domainName, displayItems: [], domainColor: '#14364F', error: err.message };
-        }
-      });
-      
-      const results = await Promise.all(fetchPromises);
-      
-      // Create maps of domain names to display items and colors
-      results.forEach(result => {
-        displayConfigMap[result.domainName] = result.displayItems;
-        colorMap[result.domainName] = result.domainColor;
-      });
-      
-      setDomainDisplayConfig(displayConfigMap);
-      setDomainColors(colorMap);
-    } catch (err) {
-      console.error('Error fetching domain display configurations:', err);
-      setError('Failed to load domain display configurations');
-    } finally {
-      setIsLoadingDisplayConfig(false);
-    }
-  }, [localDomainOrder]);
-
-  // Add the fetch call to the useEffect for loading data
-  useEffect(() => {
-    if (localDomainOrder.length > 0) {
-      fetchDomainDisplayConfigs();
-    }
-  }, [localDomainOrder, fetchDomainDisplayConfigs]);
-
-  // Initialization and data loading effect
-  useEffect(() => {
-    if (!appInitialized && 
-        !isLoadingConfig && !isLoadingMissions && !isLoadingScenarios && 
-        !isLoadingRequirements && !isLoadingParameters && !isLoadingFunctions &&
-        !isLoadingDisplayConfig) {
-      // All data has been loaded, mark app as initialized
-      setAppInitialized(true);
-      console.log("Digital Thread data loaded successfully!");
-    }
-  }, [
-    appInitialized, isLoadingConfig, isLoadingMissions, isLoadingScenarios, 
-    isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
-    isLoadingDisplayConfig // Add display config loading state
-  ]);
-
   // --- useEffect to Calculate Nodes and Edges --- 
   useEffect(() => {
     // Check if data is still loading
@@ -564,12 +586,24 @@ function FlowView() {
         isLoadingRequirements || isLoadingParameters || isLoadingFunctions || 
         isLoadingDisplayConfig || !appConfig) {
       console.log("Waiting for data to calculate hierarchical layout...");
+      console.log("Loading states:", {
+        config: isLoadingConfig,
+        missions: isLoadingMissions,
+        scenarios: isLoadingScenarios,
+        requirements: isLoadingRequirements,
+        parameters: isLoadingParameters,
+        functions: isLoadingFunctions,
+        displayConfig: isLoadingDisplayConfig
+      });
       setNodes([]);
       setEdges([]);
       return;
     }
 
     console.log(`Calculating ${showRelationshipLines ? 'nodes and edges' : 'nodes only'} with Parent Containers and Space...`);
+    console.log("Domain Display Config:", JSON.stringify(domainDisplayConfig));
+    console.log("Domain Colors:", JSON.stringify(domainColors));
+    console.log("Available domains:", localDomainOrder);
 
     const newNodes = [];
     const newEdges = [];
@@ -588,7 +622,7 @@ function FlowView() {
     const parentPadding = 15; // Padding inside parent node
     const parentTitleHeight = 25; // Space allocated for the title text itself
     const spaceBelowTitle = 45; // *** Space for filter/icons ***
-    const columnWidth = 380; // Width to handle indentation
+    const columnWidth = 460; // Width to handle indentation
     const nodeWidth = columnWidth - (parentPadding * 2) - 20; // Reduce a bit for indentation
     const maxIndentation = 4; // Maximum number of indentation levels
     const indentX = Math.min(20, (nodeWidth / maxIndentation)); // Calculate indentation that won't exceed container
@@ -615,7 +649,7 @@ function FlowView() {
     const childIdSets = {
         Mission: new Set(missions.flatMap(item => item.childMissionIds || [])),
         Scenario: new Set(scenarios.flatMap(item => item.childScenarioIds || [])),
-        Requirements: new Set(requirements.flatMap(item => item.childRequirementIds || [])),
+        Requirements: new Set(requirements.flatMap(item => item.childRequirementsIds || [])),
         Parameter: new Set(parameters.flatMap(item => item.childParameterIds || [])),
         Functions: new Set(functions.flatMap(item => item.childFunctionIds || [])),
     };
@@ -633,11 +667,24 @@ function FlowView() {
         // Filter top-level items based on domain display configuration
         let topLevelItems = Array.from(itemMap.values()).filter(item => !childIdSet?.has(item.id));
         
+        // Add debug logging
+        console.log(`Domain ${domainName}: Found ${topLevelItems.length} top-level items before filtering`);
+        
         // Apply domain display configuration filtering if available
         const displayItemIds = domainDisplayConfig[domainName];
+        console.log(`Domain ${domainName} display config:`, displayItemIds);
+        
         if (displayItemIds && displayItemIds.length > 0) {
           // Only show items that are in the display configuration
+          console.log(`Filtering ${domainName} to only show items:`, displayItemIds);
           topLevelItems = topLevelItems.filter(item => displayItemIds.includes(item.id));
+          console.log(`${domainName}: ${topLevelItems.length} items after filtering`);
+          
+          if (topLevelItems.length === 0) {
+            console.warn(`No top-level items matched the display filter for ${domainName}. Check the item IDs in the configuration.`);
+          }
+        } else {
+          console.log(`${domainName}: No display filtering applied, showing all ${topLevelItems.length} items`);
         }
         
         // Define calculateBranchHeight here so it can access nodeDisplayMode and other constants
@@ -1079,7 +1126,7 @@ function FlowView() {
       {error && <APIErrorMessage error={error} onRetry={retryAllConnections} />}
       
       {/* Show loading UI if not initialized */}
-      {!appInitialized && isLoadingConfig ? (
+      {(!appInitialized || isLoadingConfig) && (
         <div className="loading-container">
           <div className="loading-message">
             <h2>Connecting to Digital Thread API...</h2>
@@ -1087,7 +1134,10 @@ function FlowView() {
             <button className="retry-button" onClick={retryAllConnections}>Retry Connection</button>
           </div>
         </div>
-      ) : (
+      )}
+      
+      {/* Only render React Flow when initialized */}
+      {appInitialized && (
         <>
           {/* React Flow Canvas */} 
           <ReactFlow

@@ -94,14 +94,14 @@ router.get('/', async (req, res) => {
        RETURN r, 
               collect(DISTINCT s.id) AS requiringScenarioIds, 
               collect(DISTINCT p.id) AS definedParameterIds,
-              collect(DISTINCT child.id) AS childRequirementIds // Add child IDs
+              collect(DISTINCT child.id) AS childRequirementsIds // Changed from childRequirementIds to childRequirementsIds
        ORDER BY r.id` 
     );
     const requirements = result.records.map(record => ({
       ...record.get('r').properties,
       requiringScenarioIds: record.get('requiringScenarioIds'),
       definedParameterIds: record.get('definedParameterIds'),
-      childRequirementIds: record.get('childRequirementIds') // Include in response
+      childRequirementsIds: record.get('childRequirementsIds') // Changed from childRequirementIds to childRequirementsIds
     }));
     res.status(200).json(requirements);
   } catch (error) {

@@ -759,13 +759,6 @@ main {
   font-size: 12px;
 }
 
-.legend-color {
-  width: 14px;
-  height: 4px;
-  border-radius: 1px;
-  margin-right: 8px;
-}
-
 .legend-label {
   color: #333;
 }

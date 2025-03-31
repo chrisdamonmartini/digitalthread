@@ -242,8 +242,8 @@ const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourc
         viewBox="0 0 10 10"
         refX="5"
         refY="5"
-        markerWidth="6"
-        markerHeight="6"
+        markerWidth="8"
+        markerHeight="8"
         orient="auto-start-reverse"
       >
         <path d="M 0 0 L 10 5 L 0 10 z" fill={relationshipColor} />
@@ -439,10 +439,27 @@ const RelationshipLegend = () => {
       <div className="legend-items">
         {relationships.map(rel => (
           <div key={rel.type} className="legend-item">
-            <span 
-              className="legend-color" 
-              style={{ backgroundColor: rel.color }}
-            ></span>
+            <svg width="50" height="12" style={{ marginRight: '8px' }}>
+              <defs>
+                <marker
+                  id={`marker-legend-${rel.type}`}
+                  viewBox="0 0 10 10"
+                  refX="5"
+                  refY="5"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill={rel.color} />
+                </marker>
+              </defs>
+              <path
+                d="M 5,6 L 40,6"
+                stroke={rel.color}
+                strokeWidth="2.5"
+                markerEnd={`url(#marker-legend-${rel.type})`}
+              />
+            </svg>
             <span className="legend-label">{rel.label}</span>
           </div>
         ))}
@@ -492,7 +509,7 @@ function FlowView() {
   // Add state for curved vs straight edges with localStorage support
   const [useCurvedEdges, setUseCurvedEdges] = useState(() => {
     const saved = localStorage.getItem('useCurvedEdges');
-    return saved !== null ? JSON.parse(saved) : true;
+    return saved !== null ? JSON.parse(saved) : false; // Default to straight lines
   });
 
   // Save useCurvedEdges preference to localStorage

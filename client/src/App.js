@@ -1388,15 +1388,14 @@ function FlowView() {
           id: `settings-icon-${parentNodeId}`,
           parentNode: parentNodeId,
           draggable: false,
-          selectable: true,
+          selectable: false,
           position: { 
             x: columnWidth - parentPadding - 24,
             y: parentPadding + 3
           },
           data: { 
             label: null,
-            domainName: domainName,
-            onClick: () => handleDomainSettingsClick(domainName)
+            domainName: domainName
           },
           style: {
             width: 24,
@@ -1409,7 +1408,14 @@ function FlowView() {
             border: 'none',
             outline: 'none',
             cursor: 'pointer',
-            zIndex: 5
+            zIndex: 5,
+            pointerEvents: 'all' // Ensure the icon receives click events
+          },
+          events: {
+            onClick: (event) => {
+              event.stopPropagation();
+              handleDomainSettingsClick(domainName);
+            }
           }
         });
 
@@ -1962,13 +1968,14 @@ function FlowView() {
 
   // Function to handle node clicks during connection
   const handleNodeClick = useCallback((event, node) => {
-    // If parent node settings icon is clicked, open configuration panel
-    if (node.id.startsWith('settings-')) {
-      const parentId = node.id.replace('settings-', '');
-      const parentNode = nodes.find(n => n.id === parentId);
+    // If settings icon is clicked, open configuration panel
+    if (node.id.startsWith('settings-icon-')) {
+      event.stopPropagation();
+      const domainName = node.data?.domainName;
       
-      if (parentNode) {
-        setActiveDomainConfig(parentNode.data.label);
+      if (domainName) {
+        setActiveDomainConfig(domainName);
+        console.log(`Opening configuration for domain: ${domainName}`);
       }
       return;
     }
@@ -2401,15 +2408,6 @@ function FlowView() {
       {/* Only render React Flow when initialized */}
       {appInitialized && (
         <>
-          {/* Add Connector Toolbar */}
-          <ConnectorToolbar
-            onStartConnecting={handleStartConnecting}
-            onCancelConnecting={handleCancelConnecting}
-            isConnecting={isConnecting}
-            fromNode={connectionSource}
-            connectionSuccess={connectionSuccess}
-          />
-          
           {/* React Flow Canvas */} 
           <ReactFlow
             nodes={nodes}

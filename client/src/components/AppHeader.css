@@ -28,8 +28,9 @@
 }
 
 .header-title-new {
-    font-size: 18px;
-    font-weight: 600;
+    margin: 0;
+    font-size: 1.1em; /* Smaller font size */
+    font-weight: 500;
     color: white;
     margin-left: 10px;
     letter-spacing: 0.5px;

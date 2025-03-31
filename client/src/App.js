@@ -388,20 +388,10 @@ const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourc
 const CustomStraightEdge = (props) => {
   const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition } = props;
   
-  // Calculate the path for straight edges
-  const straightPath = getStraightPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
+  // Calculate the path for straight edges - this needs to be a straight line
+  const edgePath = `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`;
   
-  // Extract just the path string from the result
-  const edgePath = straightPath[0];
-  
-  // Explicitly pass the calculated path
+  // Pass all props plus the calculated straight path
   return <CustomEdge {...props} edgePath={edgePath} />;
 };
 

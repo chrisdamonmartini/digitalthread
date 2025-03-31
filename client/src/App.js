@@ -1267,7 +1267,7 @@ function FlowView() {
           id: parentNodeId,
           type: 'default',
           position: usePosition,
-          data: { label: domainName },  // Set the domain name as the label here instead of null
+          data: { label: '' },  // Remove the domain name label that shows at the top
           draggable: true, // Parent node must be draggable
           selectable: false,
           style: { 

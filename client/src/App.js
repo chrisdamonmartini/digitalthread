@@ -177,20 +177,20 @@ function getRelationshipType(sourceDomain, targetDomain) {
 }
 
 // Create a custom edge component with right-click menu and color-coded highlighting
-const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }) => {
+const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, edgePath }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showDeleteIcon, setShowDeleteIcon] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   
-  // Calculate the path based on source and target positions
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
+  // Calculate the path based on source and target positions if edgePath is not provided
+  const calculatedEdgePath = edgePath || getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
-  });
+  })[0];
 
   // Extract relationship type and domains for color
   let displayRelationship = "Relationship";
@@ -312,7 +312,7 @@ const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourc
       <path
         id={id}
         className="react-flow__edge-path"
-        d={edgePath}
+        d={calculatedEdgePath}
         style={{
           ...style,
           stroke: relationshipColor,
@@ -389,7 +389,7 @@ const CustomStraightEdge = (props) => {
   const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition } = props;
   
   // Calculate the path for straight edges
-  const [edgePath] = getStraightPath({
+  const straightPath = getStraightPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -398,6 +398,10 @@ const CustomStraightEdge = (props) => {
     targetPosition,
   });
   
+  // Extract just the path string from the result
+  const edgePath = straightPath[0];
+  
+  // Explicitly pass the calculated path
   return <CustomEdge {...props} edgePath={edgePath} />;
 };
 
@@ -2474,7 +2478,13 @@ function FlowView() {
       }
     }));
     
-    setEdges(updatedEdges);
+    // Force a complete re-render of the edges
+    setEdges([]);
+    
+    // Use setTimeout to ensure the state update cycle completes
+    setTimeout(() => {
+      setEdges(updatedEdges);
+    }, 10);
   }, [lineType, arrowheadType, appInitialized, edges.length, setEdges]);
 
   // --- Main JSX for Flow View --- 

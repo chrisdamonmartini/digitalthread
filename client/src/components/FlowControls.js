@@ -14,11 +14,28 @@ const FlowControls = ({
   onStartConnecting,  // Add this prop to receive the connection handler
   allowOnlyAdjacentConnections = true,  // New prop for connection restrictions
   setAllowOnlyAdjacentConnections = () => {}, // Setter for connection restrictions
-  useCurvedEdges = true, // Default to curved edges
-  setUseCurvedEdges = () => {} // Setter for edge type
+  lineType = 'straight',
+  setLineType = () => {},
+  arrowheadType = 'ArrowClosed',
+  setArrowheadType = () => {}
 }) => {
   const [selectedDomain, setSelectedDomain] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
+
+  // Define available line types
+  const lineTypes = [
+    { value: 'straight', label: 'Straight' },
+    { value: 'smoothstep', label: 'Smooth Step' },
+    { value: 'step', label: 'Step (Orthogonal)' },
+    { value: 'bezier', label: 'Bezier Curve' }
+  ];
+
+  // Define available arrowhead types
+  const arrowheadTypes = [
+    { value: 'ArrowClosed', label: 'Closed Arrow' },
+    { value: 'Arrow', label: 'Standard Arrow' },
+    { value: 'ArrowOpen', label: 'Open Arrow' }
+  ];
 
   return (
     <div className="flow-controls">
@@ -117,15 +134,93 @@ const FlowControls = ({
               Allow cross-sequence connections
             </label>
 
-            <label className="checkbox-container">
-              <input 
-                type="checkbox" 
-                checked={useCurvedEdges} 
-                onChange={(e) => setUseCurvedEdges(e.target.checked)}
-              />
-              <span className="checkmark"></span>
-              Use curved relationship lines
-            </label>
+            <div className="select-option">
+              <label>Line Type:</label>
+              <select 
+                value={lineType} 
+                onChange={(e) => setLineType(e.target.value)}
+                className="line-type-select"
+              >
+                {lineTypes.map(type => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              <div className="line-type-example">
+                <svg width="180" height="30">
+                  {lineType === 'straight' && (
+                    <line x1="40" y1="15" x2="140" y2="15" stroke="#00587c" strokeWidth="2.5" />
+                  )}
+                  {lineType === 'smoothstep' && (
+                    <path 
+                      d="M 40,15 C 60,15 60,15 80,5 S 100,25 120,15 S 140,15 140,15" 
+                      fill="none" 
+                      stroke="#00587c" 
+                      strokeWidth="2.5" 
+                    />
+                  )}
+                  {lineType === 'step' && (
+                    <path 
+                      d="M 40,15 H 70 V 5 H 110 V 15 H 140" 
+                      fill="none" 
+                      stroke="#00587c" 
+                      strokeWidth="2.5" 
+                    />
+                  )}
+                  {lineType === 'bezier' && (
+                    <path 
+                      d="M 40,15 C 65,0 115,30 140,15" 
+                      fill="none" 
+                      stroke="#00587c" 
+                      strokeWidth="2.5" 
+                    />
+                  )}
+                  <g transform="translate(140, 15)">
+                    {arrowheadType === 'ArrowClosed' && (
+                      <polygon points="-10,0 -10,6 0,0 -10,-6" fill="#00587c" />
+                    )}
+                    {arrowheadType === 'Arrow' && (
+                      <path d="M -10,6 L 0,0 L -10,-6" fill="none" stroke="#00587c" strokeWidth="2.5" />
+                    )}
+                    {arrowheadType === 'ArrowOpen' && (
+                      <path d="M -10,6 L 0,0 L -10,-6" fill="none" stroke="#00587c" strokeWidth="2" />
+                    )}
+                  </g>
+                </svg>
+              </div>
+            </div>
+
+            <div className="select-option">
+              <label>Arrowhead Type:</label>
+              <select 
+                value={arrowheadType} 
+                onChange={(e) => setArrowheadType(e.target.value)}
+                className="arrowhead-type-select"
+              >
+                {arrowheadTypes.map(type => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              <div className="arrowhead-type-example">
+                <svg width="180" height="30">
+                  <line x1="40" y1="15" x2="140" y2="15" stroke="#00587c" strokeWidth="2.5" />
+                  <g transform="translate(140, 15)">
+                    {arrowheadType === 'ArrowClosed' && (
+                      <polygon points="-10,0 -10,6 0,0 -10,-6" fill="#00587c" />
+                    )}
+                    {arrowheadType === 'Arrow' && (
+                      <path d="M -10,6 L 0,0 L -10,-6" fill="none" stroke="#00587c" strokeWidth="2.5" />
+                    )}
+                    {arrowheadType === 'ArrowOpen' && (
+                      <path d="M -10,6 L 0,0 L -10,-6" fill="none" stroke="#00587c" strokeWidth="2" />
+                    )}
+                  </g>
+                </svg>
+              </div>
+            </div>
 
             <div className="option-item">
               <button 

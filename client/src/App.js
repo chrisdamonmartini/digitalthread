@@ -517,6 +517,28 @@ function FlowView() {
     localStorage.setItem('useCurvedEdges', JSON.stringify(useCurvedEdges));
   }, [useCurvedEdges]);
 
+  // Add state for line type with localStorage support
+  const [lineType, setLineType] = useState(() => {
+    const saved = localStorage.getItem('lineType');
+    return saved !== null ? saved : 'straight'; // Options: straight, smoothstep, bezier, step
+  });
+
+  // Save lineType preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('lineType', lineType);
+  }, [lineType]);
+
+  // Add state for arrowhead type with localStorage support
+  const [arrowheadType, setArrowheadType] = useState(() => {
+    const saved = localStorage.getItem('arrowheadType');
+    return saved !== null ? saved : 'ArrowClosed'; // Options: ArrowClosed, Arrow, ArrowOpen
+  });
+
+  // Save arrowheadType preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('arrowheadType', arrowheadType);
+  }, [arrowheadType]);
+
   // Add state for filter text for each domain
   const [domainFilters, setDomainFilters] = useState({});
   const [domainPositions, setDomainPositions] = useState({}); // Store domain positions
@@ -533,6 +555,52 @@ function FlowView() {
   const edgeTypes = useMemo(() => ({
     custom: CustomEdge,
     straight: CustomStraightEdge,
+    smoothstep: (props) => {
+      const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition } = props;
+      
+      // Calculate the path for smoothstep
+      const [edgePath] = getSmoothStepPath({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+      });
+      
+      return <CustomEdge {...props} edgePath={edgePath} />;
+    },
+    step: (props) => {
+      const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition } = props;
+      
+      // Calculate the path for step
+      const [edgePath] = getSmoothStepPath({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+        borderRadius: 0 // No border radius for strict orthogonal corners
+      });
+      
+      return <CustomEdge {...props} edgePath={edgePath} />;
+    },
+    bezier: (props) => {
+      const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition } = props;
+      
+      // Calculate the path for bezier
+      const [edgePath] = getBezierPath({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+      });
+      
+      return <CustomEdge {...props} edgePath={edgePath} />;
+    }
   }), []);
 
   const [activeDomainConfig, setActiveDomainConfig] = useState(null); // Track which domain is being configured
@@ -1640,14 +1708,14 @@ function FlowView() {
               target: targetId, 
               sourceHandle: 'right-source', 
               targetHandle: 'left-target', 
-                type: useCurvedEdges ? 'custom' : 'straight', // Use custom edge type
+                type: lineType, // Use selected line type
               animated: false,
               style: { 
                   strokeWidth: 2.5,
                 stroke: '#00587c',
               },
               markerEnd: { 
-                type: MarkerType.ArrowClosed, 
+                type: MarkerType[arrowheadType], 
                 width: 15, 
                 height: 15, 
                 color: '#00587c'
@@ -1700,14 +1768,14 @@ function FlowView() {
               target: targetId, 
               sourceHandle: 'right-source', 
               targetHandle: 'left-target', 
-              type: useCurvedEdges ? 'custom' : 'straight', // Use custom edge type
+              type: lineType, // Use selected line type
               animated: false,
               style: { 
                 strokeWidth: 2.5,
                 stroke: '#4caf50', // Use green for newly created connections
               },
               markerEnd: { 
-                type: MarkerType.ArrowClosed, 
+                type: MarkerType[arrowheadType], 
                 width: 15, 
                 height: 15, 
                 color: '#4caf50'
@@ -1741,7 +1809,9 @@ function FlowView() {
     isLoadingDisplayConfig, // Add loading state as dependency
     domainColors, // Add domainColors as a dependency
     useCurvedEdges,
-    domainPositions // Add domainPositions as a dependency to preserve positions
+    domainPositions, // Add domainPositions as a dependency to preserve positions
+    lineType,
+    arrowheadType
   ]);
 
   // Define a function to handle when a node is dragged
@@ -2387,23 +2457,25 @@ function FlowView() {
     fetchFunctions
   ]);
 
-  // Add effect to update only edge types when useCurvedEdges changes
+  // Add effect to update only edge types when lineType changes
   useEffect(() => {
     // Skip if there are no edges or we're still loading
     if (edges.length === 0 || !appInitialized) return;
     
-    console.log("Updating edge types based on curve preference...");
+    console.log("Updating edge types based on line type preference...");
     
     // Update all edges to use the new edge type
     const updatedEdges = edges.map(edge => ({
       ...edge,
-      type: useCurvedEdges ? 
-        (edge.id === 'temp-connection-edge' ? 'simplebezier' : 'custom') : 
-        'straight'
+      type: lineType,
+      markerEnd: {
+        ...edge.markerEnd,
+        type: MarkerType[arrowheadType]
+      }
     }));
     
     setEdges(updatedEdges);
-  }, [useCurvedEdges, appInitialized, edges.length, setEdges]);
+  }, [lineType, arrowheadType, appInitialized, edges.length, setEdges]);
 
   // --- Main JSX for Flow View --- 
   return (
@@ -2497,6 +2569,10 @@ function FlowView() {
             setAllowOnlyAdjacentConnections={handleSetAllowOnlyAdjacentConnections}
             useCurvedEdges={useCurvedEdges}
             setUseCurvedEdges={setUseCurvedEdges}
+            lineType={lineType}
+            setLineType={setLineType}
+            arrowheadType={arrowheadType}
+            setArrowheadType={setArrowheadType}
           />
           
           {/* Domain Configuration Panel */}

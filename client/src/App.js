@@ -2560,9 +2560,10 @@ function FlowView() {
               background: 'transparent', 
               border: 'none',
               boxShadow: 'none',
-              top: '150px', // Position it further down
+              top: '250px', // Position it much further down
               left: '50%',
-              transform: 'translateX(-50%)'
+              transform: 'translateX(-50%)',
+              zIndex: 1000 // Ensure it's above other elements
             }}>
               <ConnectorToolbar
                 onStartConnecting={handleStartConnecting}

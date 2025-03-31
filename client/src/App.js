@@ -2504,6 +2504,30 @@ function FlowView() {
     }, 10);
   }, [lineType, arrowheadType, appInitialized, edges, setEdges]);
 
+  // Add effect to refresh edges after nodes are loaded
+  useEffect(() => {
+    // Only run this if we have nodes and are initialized
+    if (appInitialized && nodes.length > 0) {
+      console.log("Nodes loaded, forcing edge refresh...");
+      
+      // Force a refresh of edges
+      const timer = setTimeout(() => {
+        if (showRelationshipLines) {
+          console.log("Forcing a recalculation of relationship edges...");
+          const currentNodes = [...nodes];
+          // Temporarily clear nodes to force edge recalculation
+          setNodes([]);
+          // Then restore them which will trigger edge recalculation
+          setTimeout(() => {
+            setNodes(currentNodes);
+          }, 50);
+        }
+      }, 500); // Wait for nodes to fully render
+      
+      return () => clearTimeout(timer);
+    }
+  }, [appInitialized, nodes.length, showRelationshipLines, setNodes]);
+
   // --- Main JSX for Flow View --- 
   return (
     <div className="flow-view-container" style={{ height: '100%' }}>
@@ -2556,14 +2580,14 @@ function FlowView() {
             <MiniMap />
             
             {/* Move Connector Toolbar inside ReactFlow to get it out of the header */}
-            <Panel position="top-center" style={{ 
+            <Panel position="top" style={{ 
               background: 'transparent', 
               border: 'none',
               boxShadow: 'none',
-              top: '250px', // Position it much further down
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 1000 // Ensure it's above other elements
+              top: '130px', // Position it slightly above mission column
+              left: '510px', // Position it roughly centered between Mission and Requirements
+              transform: 'none',
+              zIndex: 1500 // Ensure it's above other elements
             }}>
               <ConnectorToolbar
                 onStartConnecting={handleStartConnecting}
@@ -2571,7 +2595,7 @@ function FlowView() {
                 isConnecting={isConnecting}
                 fromNode={connectionSource}
                 connectionSuccess={connectionSuccess}
-                position={{ x: window.innerWidth / 2 - 175, y: 0 }} // Center horizontally, no vertical offset (Panel handles it)
+                position={{ x: 0, y: 0 }} // No offset needed, Panel handles positioning
               />
             </Panel>
             

@@ -10,7 +10,12 @@ const FlowControls = ({
   showDomainIcons = true,
   setShowDomainIcons = () => {}, // Default no-op function if not provided
   domainConfig = {},
-  updateDomainColor = () => {} // Function to update domain color
+  updateDomainColor = () => {}, // Function to update domain color
+  onStartConnecting,  // Add this prop to receive the connection handler
+  allowOnlyAdjacentConnections = true,  // New prop for connection restrictions
+  setAllowOnlyAdjacentConnections = () => {}, // Setter for connection restrictions
+  useCurvedEdges = true, // Default to curved edges
+  setUseCurvedEdges = () => {} // Setter for edge type
 }) => {
   const [selectedDomain, setSelectedDomain] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -96,6 +101,40 @@ const FlowControls = ({
               <span className="checkmark"></span>
               Show domain icons
             </label>
+          </div>
+        </div>
+
+        <div className="flow-panel-section">
+          <h3>Connection Options</h3>
+          <div className="display-options">
+            <label className="checkbox-container">
+              <input 
+                type="checkbox" 
+                checked={!allowOnlyAdjacentConnections} 
+                onChange={(e) => setAllowOnlyAdjacentConnections(!e.target.checked)}
+              />
+              <span className="checkmark"></span>
+              Allow cross-sequence connections
+            </label>
+
+            <label className="checkbox-container">
+              <input 
+                type="checkbox" 
+                checked={useCurvedEdges} 
+                onChange={(e) => setUseCurvedEdges(e.target.checked)}
+              />
+              <span className="checkmark"></span>
+              Use curved relationship lines
+            </label>
+
+            <div className="option-item">
+              <button 
+                className="connection-button" 
+                onClick={onStartConnecting}
+              >
+                Create Connection
+              </button>
+            </div>
           </div>
         </div>
 

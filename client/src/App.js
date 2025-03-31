@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import ReactFlow, { ReactFlowProvider, Background, Controls, useNodesState, useEdgesState, MarkerType, applyNodeChanges, applyEdgeChanges, MiniMap, Panel } from 'reactflow'; // Import React Flow components
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import ReactFlow, { ReactFlowProvider, Background, Controls, useNodesState, useEdgesState, MarkerType, applyNodeChanges, applyEdgeChanges, MiniMap, Panel, getBezierPath, getSmoothStepPath, getStraightPath } from 'reactflow'; // Import React Flow components with additional path functions
 import { Routes, Route } from 'react-router-dom'; // Import routing components
 import 'reactflow/dist/style.css'; // Import default styles
 
@@ -19,6 +19,7 @@ import SettingsPage from './components/SettingsPage'; // Import settings page
 import FlowControls from './components/FlowControls'; // Import flow controls
 import FilterNode from './components/FilterNode'; // Import the FilterNode component
 import DomainConfigPanel from './components/DomainConfigPanel'; // Import the DomainConfigPanel component
+import ConnectorToolbar from './components/ConnectorToolbar';
 
 // API Error Message Component
 const APIErrorMessage = ({ error, onRetry }) => {
@@ -30,6 +31,9 @@ const APIErrorMessage = ({ error, onRetry }) => {
                            errorMsg.includes('Failed to fetch');
   const isInitializationError = errorMsg.includes('before initialization') ||
                                errorMsg.includes('Cannot access');
+  const isDomainError = errorMsg.includes('domains') || 
+                        errorMsg.includes('domain order') || 
+                        errorMsg.includes('Domain names');
   
   // Determine potential solutions based on error type
   let possibleSolutions = [];
@@ -47,6 +51,12 @@ const APIErrorMessage = ({ error, onRetry }) => {
       'Verify the database connection in the server',
       'Ensure the API URL is correct',
       'Check for any firewall or network issues'
+    ];
+  } else if (isDomainError) {
+    possibleSolutions = [
+      'Ensure each domain container has a valid label',
+      'Try clicking on different nodes to create your connection',
+      'Check the browser console for more detailed error information'
     ];
   } else {
     possibleSolutions = [
@@ -166,6 +176,119 @@ function getRelationshipType(sourceDomain, targetDomain) {
     return 'RELATES_TO'; 
 }
 
+// Create a custom edge component with hover effect
+const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  // Calculate the path based on source and target positions
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  // Extract relationship type for display
+  let displayRelationship = "Relationship";
+  if (id) {
+    const parts = id.split('-');
+    if (parts.length >= 2) {
+      // Format the relationship type for display
+      displayRelationship = parts[1].replace(/_/g, ' ').toLowerCase();
+    }
+  }
+  
+  // For tooltip positioning
+  const centerX = (sourceX + targetX) / 2;
+  const centerY = (sourceY + targetY) / 2 - 15;
+  
+  return (
+    <>
+      <path
+        id={id}
+        className="react-flow__edge-path"
+        d={edgePath}
+        style={{
+          ...style,
+          strokeWidth: isHovered ? 4 : style?.strokeWidth || 2,
+          transition: 'stroke-width 0.2s',
+          cursor: 'context-menu'
+        }}
+        markerEnd={markerEnd}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      />
+      
+      {isHovered && (
+        <g>
+          <rect
+            x={centerX - 60}
+            y={centerY - 15}
+            width={120}
+            height={30}
+            rx={5}
+            fill="white"
+            fillOpacity={0.9}
+            stroke="#00587c"
+            strokeWidth={1}
+          />
+          <text
+            x={centerX}
+            y={centerY + 5}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={10}
+            fill="#333"
+          >
+            {`${source} ${displayRelationship} ${target}`}
+          </text>
+        </g>
+      )}
+    </>
+  );
+};
+
+// For straight edges
+const CustomStraightEdge = (props) => {
+  const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition } = props;
+  
+  // Calculate the path for straight edges
+  const [edgePath] = getStraightPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+  
+  return <CustomEdge {...props} edgePath={edgePath} />;
+};
+
+// Add a custom tooltip component for edges
+const EdgeTooltip = ({ x, y, label }) => {
+  return (
+    <div 
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        background: 'white',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+        fontSize: '12px',
+        pointerEvents: 'none',
+        zIndex: 1000
+      }}
+    >
+      {label}
+    </div>
+  );
+};
+
 // Main content for the React Flow view
 function FlowView() { 
   // --- State needed ONLY for the Flow View --- 
@@ -191,10 +314,29 @@ function FlowView() {
   // Add appInitialized state here early in the component
   const [appInitialized, setAppInitialized] = useState(false);
   const [nodeDisplayMode, setNodeDisplayMode] = useState('idAndTitle'); // 'full', 'idAndTitle', 'titleOnly'
-  // Add state for relationship lines toggle
-  const [showRelationshipLines, setShowRelationshipLines] = useState(false);
+  // Add state for relationship lines toggle with localStorage support
+  const [showRelationshipLines, setShowRelationshipLines] = useState(() => {
+    const saved = localStorage.getItem('showRelationshipLines');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+
+  // Save showRelationshipLines preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('showRelationshipLines', JSON.stringify(showRelationshipLines));
+  }, [showRelationshipLines]);
+
   // Add state for domain icons toggle
   const [showDomainIcons, setShowDomainIcons] = useState(true);
+  // Add state for curved vs straight edges with localStorage support
+  const [useCurvedEdges, setUseCurvedEdges] = useState(() => {
+    const saved = localStorage.getItem('useCurvedEdges');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  // Save useCurvedEdges preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('useCurvedEdges', JSON.stringify(useCurvedEdges));
+  }, [useCurvedEdges]);
 
   // Add state for filter text for each domain
   const [domainFilters, setDomainFilters] = useState({});
@@ -207,6 +349,12 @@ function FlowView() {
     custom: CustomNode,
     filter: FilterNode, // Register the FilterNode component
   }), []);
+  
+  // Add edge types
+  const edgeTypes = useMemo(() => ({
+    custom: CustomEdge,
+    straight: CustomStraightEdge,
+  }), []);
 
   const [activeDomainConfig, setActiveDomainConfig] = useState(null); // Track which domain is being configured
   const [retryCount, setRetryCount] = useState(0); // Add retry count state
@@ -215,6 +363,28 @@ function FlowView() {
   const [domainDisplayConfig, setDomainDisplayConfig] = useState({});
   const [domainColors, setDomainColors] = useState({}); // Store domain colors
   const [isLoadingDisplayConfig, setIsLoadingDisplayConfig] = useState(true);
+
+  // Add new state for connection handling
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionSource, setConnectionSource] = useState(null);
+  const [connectionSuccess, setConnectionSuccess] = useState(false);
+
+  // Add refresh tracking refs
+  const refreshAttempts = React.useRef(0);
+  const lastRefreshTime = React.useRef(0);
+  const connectionCompleted = React.useRef(false);
+
+  // State for managing configuration
+  const [config, setConfig] = useState(null);
+  const [allowOnlyAdjacentConnections, setAllowOnlyAdjacentConnections] = useState(true);
+
+  // Forward-declare updateLocalRelationship to avoid reference error
+  const updateLocalRelationshipTemp = (fromDomain, fromId, toId) => {
+    console.log("Updating local relationship", { fromDomain, fromId, toId });
+    // Implementation will be overridden later
+  };
+  // Use ref to avoid dependency cycle issues
+  const updateLocalRelationshipRef = useRef(updateLocalRelationshipTemp);
 
   // --- useEffect for successMessage (Keep for linking feedback) --- 
   useEffect(() => {
@@ -226,21 +396,31 @@ function FlowView() {
 
   // --- Data Fetching functions --- 
   const fetchConfig = useCallback(async () => {
+    try {
     setIsLoadingConfig(true);
     setError(null);
-    try {
-      const data = await fetchWithErrorHandling(createApiEndpoint('config'));
-      setAppConfig(data);
-      setLocalDomainOrder(data.domainOrder || []);
+      
+      const result = await fetchWithErrorHandling(createApiEndpoint('config'));
+      setConfig(result);
+      setAppConfig(result);
+      setLocalDomainOrder(result.domainOrder || []);
+      
+      // Set the local state based on config
+      if (result && result.allowOnlyAdjacentConnections !== undefined) {
+        setAllowOnlyAdjacentConnections(result.allowOnlyAdjacentConnections);
+      }
+      
+      setIsLoadingConfig(false);
+      return result;
     } catch (e) {
       console.error("Error fetching config:", e);
-      setError(`Failed to load application configuration: ${e.message}`);
+      setIsLoadingConfig(false);
+      setError(`Failed to fetch configuration: ${e.message}`);
       setAppConfig({});
       setLocalDomainOrder([]);
-    } finally {
-      setIsLoadingConfig(false);
+      throw e;
     }
-  }, []);
+  }, [fetchWithErrorHandling, setError, setAppConfig, setLocalDomainOrder]);
 
   // Function to fetch domain display configurations - moved up before where it's used
   const fetchDomainDisplayConfigs = useCallback(async () => {
@@ -516,41 +696,191 @@ function FlowView() {
       console.log(`Start linking from ${fromDomain} item: ${fromId}`);
   }, [setLinkingState, setSuccessMessage, setError]);
 
-  const completeLink = useCallback(async (toId, toDomain) => {
-      if (!linkingState.fromId || !linkingState.fromDomain) return;
-      
-      const { fromId, fromDomain } = linkingState;
-      const relationshipType = getRelationshipType(fromDomain, toDomain);
-      
-      console.log(`Attempting to link ${fromDomain} (${fromId}) -> ${toDomain} (${toId}) with type ${relationshipType}`);
-      setError(null); // Clear previous errors
+  // Function for completing a relationship link after source and target nodes are selected
+  const completeLink = useCallback(async (sourceNodeId, targetNodeId) => {
+    // Clear any previous success state
+    setConnectionSuccess(false);
 
-      try {
-          const resultData = await fetchWithErrorHandling(createApiEndpoint('relationships'), {
+    if (!sourceNodeId || !targetNodeId) {
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setError("Unable to create connection: Missing source or target node.");
+      return false;
+    }
+
+    // Get source and target nodes
+    const sourceNode = nodes.find(n => n.id === sourceNodeId);
+    const targetNode = nodes.find(n => n.id === targetNodeId);
+
+    if (!sourceNode || !targetNode) {
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setError("Unable to create connection: Source or target node not found.");
+      return false;
+    }
+
+    // Determine parent nodes (domains)
+    const sourceParentId = sourceNode.parentNode;
+    const targetParentId = targetNode.parentNode;
+
+    console.log("Connection details:", { 
+      sourceId: sourceNodeId, 
+      targetId: targetNodeId,
+      sourceParentId,
+      targetParentId,
+      sourceData: sourceNode.data,
+      targetData: targetNode.data
+    });
+
+    if (!sourceParentId || !targetParentId) {
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setError("Unable to create connection: Can only connect nodes within domains.");
+      return false;
+    }
+
+    // Identify domain types
+    const sourceParent = nodes.find(n => n.id === sourceParentId);
+    const targetParent = nodes.find(n => n.id === targetParentId);
+
+    if (!sourceParent || !targetParent) {
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setError("Unable to create connection: Parent domains not found.");
+      console.error("Parent domains not found:", { sourceParentId, targetParentId });
+      return false;
+    }
+
+    // Extract domain names from parent nodes
+    const fromDomain = sourceParent.data?.label;
+    const toDomain = targetParent.data?.label;
+
+    console.log("Domain information:", { fromDomain, toDomain });
+
+    if (!fromDomain || !toDomain) {
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setError("Unable to create connection: Domain names not found in parent nodes.");
+      console.error("Domain names missing:", { sourceParent, targetParent });
+      return false;
+    }
+
+    // Get domain index positions
+    const fromIndex = localDomainOrder.indexOf(fromDomain);
+    const toIndex = localDomainOrder.indexOf(toDomain);
+
+    if (fromIndex === -1 || toIndex === -1) {
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setError(`Unable to create connection: One or both domains (${fromDomain}, ${toDomain}) not found in domain order. Please check the domain containers and try again.`);
+      console.error("Domain order:", localDomainOrder);
+      console.error("Domain extraction issue:", {
+        sourceParentId,
+        targetParentId,
+        sourceParent: sourceParent ? { id: sourceParent.id, data: sourceParent.data } : null,
+        targetParent: targetParent ? { id: targetParent.id, data: targetParent.data } : null
+      });
+      return false;
+    }
+
+    // Validate domain connection is allowed
+    if (allowOnlyAdjacentConnections && toIndex !== fromIndex + 1) {
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setError(`Unable to create connection: Connection only allowed from ${fromDomain} to ${localDomainOrder[fromIndex + 1]}.`);
+      return false;
+    }
+
+    // Don't allow backwards connections
+    if (toIndex <= fromIndex) {
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setError(`Unable to create connection: Backward connections (${fromDomain} to ${toDomain}) are not allowed.`);
+      return false;
+    }
+
+    // Define relationship type based on domain pair
+    const relationshipTypes = {
+      'Mission_Scenario': 'DRIVES',
+      'Scenario_Requirements': 'REQUIRES',
+      'Requirements_Parameter': 'DEFINES',
+      'Parameter_Functions': 'INPUT_TO'
+      // Add more relationships as needed for future domains
+    };
+
+    const relationshipKey = `${fromDomain}_${toDomain}`;
+    const relationshipType = relationshipTypes[relationshipKey];
+
+    if (!relationshipType) {
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setError(`Unable to create connection: No relationship defined between ${fromDomain} and ${toDomain}.`);
+      return false;
+    }
+
+    try {
+      // Create relationship via API
+      const result = await fetchWithErrorHandling(createApiEndpoint('relationships'), {
               method: 'POST',
               headers: {
                  'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                 fromId,
-                 toId,
+          fromId: sourceNodeId,
+          toId: targetNodeId,
                  fromDomain,
                  toDomain,
                  relationshipType
               })
           });
 
-          console.log('Link created:', resultData);
-          setSuccessMessage(resultData.message || 'Link created successfully!'); 
-          // Optionally: Refresh data related to the linked items if needed
+      // Update local data to reflect the new relationship
+      updateLocalRelationshipRef.current(fromDomain, sourceNodeId, targetNodeId);
 
-      } catch (e) {
-          console.error("Error creating link:", e);
-          setError(`Failed to create link: ${e.message}`);
-      } finally {
-          setLinkingState({ fromId: null, fromDomain: null }); // Reset linking state
+      console.log(`Successfully created relationship: ${result.message}`);
+      
+      // Create the visual edge if relationship was created successfully
+      if (showRelationshipLines) {
+        const newEdge = {
+          id: `${sourceNodeId}-${relationshipType}-${targetNodeId}`,
+          source: sourceNodeId,
+          target: targetNodeId,
+          type: useCurvedEdges ? 'custom' : 'straight', // Use custom edge type
+          animated: false,
+          style: { stroke: '#00587c', strokeWidth: 2 }
+        };
+        
+        setEdges(eds => [...eds, newEdge]);
       }
-  }, [linkingState, setError, setSuccessMessage, setLinkingState]);
+      
+      // Set success state for UI feedback
+      setConnectionSuccess(true);
+      setSuccessMessage(`Created ${relationshipType} relationship from ${sourceNodeId} to ${targetNodeId}`);
+      
+      // Leave connecting mode active for potential additional connections
+      setConnectionSource(null);
+      
+      // Return success to the caller
+      return true;
+    } catch (error) {
+      console.error("Error creating relationship:", error);
+      setError(`Failed to create relationship: ${error.message}`);
+      setIsConnecting(false);
+      setConnectionSource(null);
+      return false;
+    }
+  }, [
+    nodes, 
+    localDomainOrder, 
+    fetchWithErrorHandling, 
+    showRelationshipLines, 
+    setEdges, 
+    setError, 
+    setSuccessMessage,
+    allowOnlyAdjacentConnections,
+    useCurvedEdges
+    // updateLocalRelationship removed to avoid reference error
+  ]);
 
   const cancelLinking = useCallback(() => {
       setLinkingState({ fromId: null, fromDomain: null });
@@ -687,6 +1017,7 @@ function FlowView() {
           console.log(`${domainName}: No display filtering applied, showing all ${topLevelItems.length} items`);
         }
         
+        
         // Define calculateBranchHeight here so it can access nodeDisplayMode and other constants
         const calculateBranchHeight = (itemId) => {
             const item = itemMap.get(itemId);
@@ -761,34 +1092,72 @@ function FlowView() {
         // Use color from domainColors state if available, otherwise use default
         const domainColor = domainColors[domainName] || domainSpecificConfig.color || '#14364F';
 
+        // Check if this domain has a stored position and use it
+        const storedPosition = domainPositions[parentNodeId];
+        const usePosition = storedPosition ? storedPosition : { x: parentX, y: parentY };
+        
+        if (storedPosition) {
+          console.log(`Using stored position for ${parentNodeId}: ${JSON.stringify(storedPosition)}`);
+        }
+
         // --- 1. Add Parent Node --- 
         newNodes.push({
           id: parentNodeId,
           type: 'default',
-          position: { x: parentX, y: parentY },
-          data: { label: null }, 
-          draggable: true, 
+          position: usePosition,
+          data: { label: domainName },  // Set the domain name as the label here instead of null
+          draggable: true, // Parent node must be draggable
           selectable: false,
           style: { 
               width: columnWidth, 
               height: parentHeight, 
               backgroundColor: 'white',
-              border: `1px solid ${domainColor}`, // Use domain-specific color from config
+              border: `1px solid ${domainColor}`,
               borderRadius: '4px',
               boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-          },
-          zIndex: 0 
+              cursor: 'default'
+          }
+        });
+
+        // Add drag indicator at top of container
+        newNodes.push({
+          id: `dragbar-${parentNodeId}`, // Changed to prevent potential conflicts
+          type: 'default',
+          parentNode: parentNodeId,
+          draggable: false,
+          selectable: false,
+          position: { x: 0, y: 0 },
+          data: { label: '⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯' },
+          style: {
+            width: columnWidth,
+            height: 4,
+            backgroundColor: '#eee',
+            cursor: 'grab',
+            fontSize: '9px',
+            color: '#666',
+            textAlign: 'center',
+            pointerEvents: 'none' // Let clicks pass through to parent
+          }
+        });
+
+        // Function to create non-draggable node properties
+        const createNonDraggableNode = (node) => ({
+          ...node,
+          draggable: false,
+          selectable: false,
+          style: {
+            ...node.style,
+            pointerEvents: node.className === 'drag-handle' ? 'all' : 'none'
+          }
         });
 
         // --- 2. Add Domain Icon (if icons are enabled) ---
         if (showDomainIcons) {
           if (domainSpecificConfig.icon) {
-            newNodes.push({
+            newNodes.push(createNonDraggableNode({
               id: `icon-${parentNodeId}`,
               parentNode: parentNodeId,
-              draggable: false,
-              selectable: false,
-              position: { x: parentPadding, y: parentPadding + 4 }, // Adjust to vertically center with title text
+              position: { x: parentPadding, y: parentPadding + 4 },
               data: { label: null },
               style: {
                 width: 40,
@@ -801,10 +1170,11 @@ function FlowView() {
                 border: 'none',
                 outline: 'none',
                 boxShadow: 'none',
-                filter: 'drop-shadow(0 0 0 transparent)', // Remove any filter effects
+                filter: 'drop-shadow(0 0 0 transparent)',
+                cursor: 'default',
                 zIndex: 1
               }
-            });
+            }));
           }
         }
 
@@ -830,7 +1200,9 @@ function FlowView() {
               backgroundColor: 'transparent',
               border: 'none',
               outline: 'none',
-              zIndex: 1 
+              cursor: 'default',
+              zIndex: 3, // Ensure title is above the handle
+              pointerEvents: 'none'
           }
         });
 
@@ -839,15 +1211,15 @@ function FlowView() {
           id: `settings-icon-${parentNodeId}`,
           parentNode: parentNodeId,
           draggable: false,
-          selectable: true, // Make selectable to enable click events
+          selectable: true,
           position: { 
-            x: columnWidth - parentPadding - 24, // Right-justified (24 is the icon width)
-            y: parentPadding + 3 // Adjusted to align with the middle of the domain title
+            x: columnWidth - parentPadding - 24,
+            y: parentPadding + 3
           },
           data: { 
             label: null,
             domainName: domainName,
-            onClick: () => handleDomainSettingsClick(domainName) // Use the handler function
+            onClick: () => handleDomainSettingsClick(domainName)
           },
           style: {
             width: 24,
@@ -857,7 +1229,7 @@ function FlowView() {
             backgroundRepeat: 'no-repeat',
             backgroundPosition: 'center',
             backgroundColor: 'transparent',
-            border: 'none', // No border
+            border: 'none',
             outline: 'none',
             cursor: 'pointer',
             zIndex: 5
@@ -993,31 +1365,85 @@ function FlowView() {
 
     // Calculate relationship edges if they should be shown
     if (showRelationshipLines) {
-      localDomainOrder.forEach((domainName) => {
+      console.log("Calculating relationship edges for display...");
+      
+      // Create a map of relationships for debugging
+      const relationshipMap = {
+        'Mission': 'drivenScenarioIds',
+        'Scenario': 'requiredRequirementIds',
+        'Requirements': 'definedParameterIds',
+        'Parameter': 'inputToFunctionIds'
+      };
+      
+      // Log relationship fields for debugging
+      Object.entries(itemMaps).forEach(([domain, itemMap]) => {
+        const relationshipField = relationshipMap[domain];
+        if (relationshipField) {
+          const totalRelationships = Array.from(itemMap.values())
+            .map(item => item[relationshipField]?.length || 0)
+            .reduce((a, b) => a + b, 0);
+          console.log(`${domain} has ${totalRelationships} relationships in ${relationshipField}`);
+        }
+      });
+      
+      // Track all edges created to avoid duplicates
+      const edgeIds = new Set();
+      
+      // Process each domain to create relationship edges
+      localDomainOrder.forEach((domainName, index) => {
         const itemMap = itemMaps[domainName];
-        if (!itemMap) return;
+        if (!itemMap || index >= localDomainOrder.length - 1) return; // Skip last domain as it can't have outgoing relationships
+        
+        const targetDomain = localDomainOrder[index + 1];
+        if (!targetDomain) return;
+        
+        // Get the relationship field name for this domain
+        let relationshipField;
+        if (domainName === 'Mission') relationshipField = 'drivenScenarioIds';
+        else if (domainName === 'Scenario') relationshipField = 'requiredRequirementIds';
+        else if (domainName === 'Requirements') relationshipField = 'definedParameterIds';
+        else if (domainName === 'Parameter') relationshipField = 'inputToFunctionIds';
+        
+        if (!relationshipField) {
+          console.log(`No relationship field defined for ${domainName}`);
+          return;
+        }
         
         const itemsInThisColumn = Array.from(itemMap.values());
+        let edgeCount = 0;
+        
         itemsInThisColumn.forEach((item) => {
           const sourceId = item.id;
-          let targetIds = [];
-          if (domainName === 'Mission') targetIds = item.drivenScenarioIds || [];
-          else if (domainName === 'Scenario') targetIds = item.requiredRequirementIds || [];
-          else if (domainName === 'Requirements') targetIds = item.definedParameterIds || [];
-          else if (domainName === 'Parameter') targetIds = item.inputToFunctionIds || [];
+          const targetIds = item[relationshipField] || [];
+          
+          if (targetIds.length > 0) {
+            console.log(`${domainName} ${sourceId} has ${targetIds.length} relationships to ${targetDomain}`);
+          }
           
           targetIds.forEach(targetId => {
-            const edgeType = getRelationshipType(domainName, localDomainOrder[localDomainOrder.indexOf(domainName) + 1]);
+            const edgeType = getRelationshipType(domainName, targetDomain);
+            const edgeId = `${sourceId}-${edgeType}-${targetId}`;
+            
+            // Skip if we've already processed this edge
+            if (edgeIds.has(edgeId)) return;
+            edgeIds.add(edgeId);
+            
+            // Check if the source and target nodes exist in the current nodes array
+            const sourceExists = nodes.some(node => node.id === sourceId);
+            const targetExists = nodes.some(node => node.id === targetId);
+            
+            if (sourceExists && targetExists) {
+              edgeCount++;
             newEdges.push({
-              id: `${sourceId}-${edgeType}-${targetId}`,
+                id: edgeId,
               source: sourceId, 
               target: targetId, 
               sourceHandle: 'right-source', 
               targetHandle: 'left-target', 
-              type: 'smoothstep', 
+                type: useCurvedEdges ? 'custom' : 'straight', // Use custom edge type
               animated: false,
               style: { 
-                strokeWidth: 3,
+                  strokeWidth: 2.5,
                 stroke: '#00587c',
               },
               markerEnd: { 
@@ -1026,11 +1452,76 @@ function FlowView() {
                 height: 15, 
                 color: '#00587c'
               },
-              zIndex: 5
-            });
+                zIndex: 5,
+                data: { // Add data for tooltip
+                  sourceId,
+                  targetId,
+                  relationshipType: edgeType // Use the correctly defined edgeType variable here
+                },
+                interactionWidth: 20 // Increase the interaction area width to make hover easier
+              });
+            } else {
+              console.log(`Skipping edge ${edgeId} - source or target node not found`);
+            }
           });
         });
+        
+        console.log(`Created ${edgeCount} edges from ${domainName} to ${targetDomain}`);
       });
+      
+      // Check if there was a recent connection created that might not be in the API data yet
+      // This ensures connections are visible immediately after creation
+      if (connectionSuccess && connectionSource) {
+        // Extract source and target information from the last connection
+        const sourceId = connectionSource.id;
+        const sourceDomain = connectionSource.data?.domain;
+        const targetNodes = nodes.filter(n => 
+          n.data?.domain === localDomainOrder[localDomainOrder.indexOf(sourceDomain) + 1] && 
+          n.selectable !== false && !n.id.startsWith('icon-') && !n.id.startsWith('title-')
+        );
+        
+        // Find target node that has connection highlight
+        const targetNode = targetNodes.find(n => n.data?.isConnectionHighlighted === true);
+        
+        if (targetNode) {
+          const targetId = targetNode.id;
+          const targetDomain = targetNode.data?.domain;
+          const edgeType = getRelationshipType(sourceDomain, targetDomain);
+          const edgeId = `${sourceId}-${edgeType}-${targetId}`;
+          
+          // Only add if this edge doesn't already exist
+          if (!edgeIds.has(edgeId)) {
+            console.log(`Adding temporary edge for new connection: ${sourceId} -> ${targetId}`);
+            edgeIds.add(edgeId);
+            
+            newEdges.push({
+              id: edgeId,
+              source: sourceId, 
+              target: targetId, 
+              sourceHandle: 'right-source', 
+              targetHandle: 'left-target', 
+              type: useCurvedEdges ? 'custom' : 'straight', // Use custom edge type
+              animated: false,
+              style: { 
+                strokeWidth: 2.5,
+                stroke: '#4caf50', // Use green for newly created connections
+              },
+              markerEnd: { 
+                type: MarkerType.ArrowClosed, 
+                width: 15, 
+                height: 15, 
+                color: '#4caf50'
+              },
+              zIndex: 6, // Higher z-index to appear on top
+              data: { // Add data property with relationship information
+                sourceId,
+                targetId,
+                relationshipType: edgeType
+              }
+            });
+          }
+        }
+      }
     }
 
     console.log(`Calculated ${newNodes.length} nodes.`);
@@ -1049,6 +1540,8 @@ function FlowView() {
     domainDisplayConfig,
     isLoadingDisplayConfig, // Add loading state as dependency
     domainColors, // Add domainColors as a dependency
+    useCurvedEdges,
+    domainPositions // Add domainPositions as a dependency to preserve positions
   ]);
 
   // Define a function to handle when a node is dragged
@@ -1061,52 +1554,86 @@ function FlowView() {
     
     // Get the current node's dimensions
     const currentNodeWidth = node.style?.width || 380; // Use the default width if not defined
+    const currentNodeHeight = node.style?.height || 400; // Approximate height if not defined
     const currentNodeX = node.position.x;
+    const currentNodeY = node.position.y;
     
-    // Minimum spacing between domains (horizontal)
-    const minDomainSpacing = 50; // Match the columnGap value
+    // Minimum spacing between domains - increase this to prevent any overlap
+    const minDomainSpacing = 40; // Increased spacing between domains
     
     // Boundaries to keep nodes within visible area
     const minX = 20; // Minimum X position
+    const minY = 0;  // Minimum Y position
     
     // Check if node is being dragged outside boundaries
     if (currentNodeX < minX) {
       node.position.x = minX;
     }
+    if (currentNodeY < minY) {
+      node.position.y = minY;
+    }
     
-    // Check distance from current node to all other domain nodes
-    let hasCollision = false;
+    // Flag to track if position was adjusted due to collision
+    let positionAdjusted = false;
+    
+    // Check for overlaps with all other domain nodes
     domainNodes.forEach(otherNode => {
       // Skip the node being dragged
       if (otherNode.id === node.id) return;
       
       const otherNodeWidth = otherNode.style?.width || 380;
+      const otherNodeHeight = otherNode.style?.height || 400;
       const otherNodeX = otherNode.position.x;
+      const otherNodeY = otherNode.position.y;
       
-      // Calculate horizontal distance between nodes
-      const distanceX = currentNodeX - otherNodeX;
+      // Calculate edge-to-edge distances between nodes
+      const leftDist = (currentNodeX - otherNodeX);
+      const topDist = (currentNodeY - otherNodeY);
+      const rightDist = (otherNodeX - currentNodeX);
+      const bottomDist = (otherNodeY - currentNodeY);
       
-      // If nodes are getting too close (from either left or right)
-      if (Math.abs(distanceX) < (currentNodeWidth + otherNodeWidth)/2 + minDomainSpacing) {
-        hasCollision = true;
-        // Only reposition if the node is actively being dragged (not during initial layout)
-        if (event) {
-          // Reposition the node being dragged to maintain minimum spacing
-          if (distanceX > 0) {
-            // Current node is to the right of other node
-            node.position.x = otherNodeX + otherNodeWidth/2 + currentNodeWidth/2 + minDomainSpacing;
+      // Calculate minimum required distances to prevent overlap
+      const minHorizDist = (currentNodeWidth + otherNodeWidth) / 2 + minDomainSpacing;
+      const minVertDist = (currentNodeHeight + otherNodeHeight) / 2 + minDomainSpacing;
+      
+      // Check if there's overlap in both dimensions
+      const horizOverlap = Math.abs(leftDist) < minHorizDist;
+      const vertOverlap = Math.abs(topDist) < minVertDist;
+      
+      if (horizOverlap && vertOverlap) {
+        positionAdjusted = true;
+        
+        // Determine which direction requires the smallest adjustment
+        const horizAdjustment = minHorizDist - Math.abs(leftDist);
+        const vertAdjustment = minVertDist - Math.abs(topDist);
+        
+        if (horizAdjustment < vertAdjustment) {
+          // Horizontal adjustment is smaller
+          if (leftDist > 0) {
+            // Current node is to the right
+            node.position.x = otherNodeX + minHorizDist;
           } else {
-            // Current node is to the left of other node
-            node.position.x = otherNodeX - otherNodeWidth/2 - currentNodeWidth/2 - minDomainSpacing;
+            // Current node is to the left
+            node.position.x = otherNodeX - minHorizDist;
+          }
+        } else {
+          // Vertical adjustment is smaller
+          if (topDist > 0) {
+            // Current node is below
+            node.position.y = otherNodeY + minVertDist;
+          } else {
+            // Current node is above
+            node.position.y = otherNodeY - minVertDist;
           }
         }
       }
     });
     
-    // Optional: Snap to grid if there's no collision
-    if (!hasCollision) {
+    // Optional: Snap to grid if no collisions were detected
+    if (!positionAdjusted) {
       const gridSize = 20; // Snap to every 20px
       node.position.x = Math.round(node.position.x / gridSize) * gridSize;
+      node.position.y = Math.round(node.position.y / gridSize) * gridSize;
     }
     
   }, [nodes]);
@@ -1118,6 +1645,577 @@ function FlowView() {
       storeDomainPosition(node.id, { ...node.position });
     }
   }, [storeDomainPosition]);
+
+  // Function to handle mouse move for connection preview
+  const handleMouseMove = useCallback((event) => {
+    if (isConnecting && connectionSource) {
+      // Get mouse position relative to the ReactFlow canvas
+      const { clientX, clientY } = event;
+      const reactFlowBounds = document.querySelector('.react-flow').getBoundingClientRect();
+      
+      // Get source node's position and dimensions
+      const sourceNode = nodes.find(n => n.id === connectionSource.id);
+      if (!sourceNode) return;
+      
+      // Calculate source node's position in the viewport
+      const sourceNodeDOMNode = document.querySelector(`[data-id="${connectionSource.id}"]`);
+      if (!sourceNodeDOMNode) return;
+      
+      const sourceNodeBounds = sourceNodeDOMNode.getBoundingClientRect();
+      const sourceX = sourceNodeBounds.right; // Right edge of source node
+      const sourceY = sourceNodeBounds.top + (sourceNodeBounds.height / 2); // Center of source node
+      
+      // Create or update a temporary edge
+      const tempEdgeId = 'temp-connection-edge';
+      const mouseX = clientX - reactFlowBounds.left;
+      const mouseY = clientY - reactFlowBounds.top;
+      
+      // Remove any existing temp edge
+      setEdges(edges => edges.filter(edge => edge.id !== tempEdgeId).concat([{
+        id: tempEdgeId,
+        source: connectionSource.id,
+        target: 'mouse',
+        targetX: mouseX,
+        targetY: mouseY,
+        targetPosition: 'left',
+        sourceX: sourceX - reactFlowBounds.left,
+        sourceY: sourceY - reactFlowBounds.top,
+        sourcePosition: 'right',
+        style: { stroke: '#00587c', strokeWidth: 2, strokeDasharray: '5,5' },
+        type: useCurvedEdges ? 'simplebezier' : 'straight',
+        animated: true,
+        interactionWidth: 0, // Prevent interaction with temp edge
+        data: { // Add data for tooltip
+          sourceId: connectionSource.id,
+          targetId: 'mouse', 
+          relationshipType: 'TEMP'
+        }
+      }]));
+    }
+  }, [isConnecting, connectionSource, nodes, setEdges, useCurvedEdges]);
+
+  // Function to check if two domains can be connected
+  const canConnect = useCallback((sourceDomain, targetDomain) => {
+    const validConnections = {
+      'Mission': ['Scenario'],
+      'Scenario': ['Requirements'],
+      'Requirements': ['Parameter'],
+      'Parameter': ['Functions']
+    };
+    
+    // Add debug feedback
+    if (sourceDomain && targetDomain) {
+      const isValid = validConnections[sourceDomain]?.includes(targetDomain);
+      console.log(`Connection ${sourceDomain} -> ${targetDomain}: ${isValid ? 'Valid' : 'Invalid'}`);
+      return isValid;
+    }
+    return false;
+  }, []);
+
+  // Function to start connection mode
+  const handleStartConnecting = useCallback(() => {
+    setIsConnecting(true);
+    setConnectionSource(null);
+    setConnectionSuccess(false);
+    setError(null);
+    console.log('Connection mode started');
+  }, [setError]);
+
+  // Function to cancel connection mode
+  const handleCancelConnecting = useCallback(() => {
+    setIsConnecting(false);
+    setConnectionSource(null);
+    setConnectionSuccess(false);
+    setError(null);
+    console.log('Connection mode canceled');
+  }, [setError]);
+
+  // Function to handle node hover during connection
+  const handleNodeMouseEnter = useCallback((event, node) => {
+    // If we're not in connecting mode, do nothing
+    if (!isConnecting) return;
+    
+    // Skip parent containers and non-item nodes
+    if (node.type === 'parentContainer' || 
+        node.id.startsWith('handle-') || 
+        node.id.startsWith('title-') || 
+        node.id.startsWith('icon-')) {
+      return;
+    }
+    
+    // Add a subtle highlight to indicate this node can be clicked
+    const updatedNodes = nodes.map(n => {
+      if (n.id === node.id) {
+        return {
+          ...n,
+          style: {
+            ...n.style,
+            boxShadow: '0 0 0 2px #00587c',
+            transition: 'all 0.2s ease-in-out'
+          }
+        };
+      }
+      return n;
+    });
+    
+    setNodes(updatedNodes);
+  }, [isConnecting, nodes, setNodes]);
+
+  // Function to handle node hover exit
+  const handleNodeMouseLeave = useCallback((event, node) => {
+    // If we're not in connecting mode, do nothing
+    if (!isConnecting) return;
+    
+    // Remove highlight when mouse leaves
+    const updatedNodes = nodes.map(n => {
+      if (n.id === node.id) {
+        const newStyle = { ...n.style };
+        delete newStyle.boxShadow;
+        
+        return {
+          ...n,
+          style: newStyle
+        };
+      }
+      return n;
+    });
+    
+    setNodes(updatedNodes);
+  }, [isConnecting, nodes, setNodes]);
+
+  // Function to handle node clicks during connection
+  const handleNodeClick = useCallback((event, node) => {
+    // If parent node settings icon is clicked, open configuration panel
+    if (node.id.startsWith('settings-')) {
+      const parentId = node.id.replace('settings-', '');
+      const parentNode = nodes.find(n => n.id === parentId);
+      
+      if (parentNode) {
+        setActiveDomainConfig(parentNode.data.label);
+      }
+      return;
+    }
+    
+    // If we're not connecting, do nothing else
+    if (!isConnecting) return;
+    
+    // If node is a parent container or handle or non-item node, ignore
+    if (node.type === 'parentContainer' || 
+        node.id.startsWith('handle-') || 
+        node.id.startsWith('title-') || 
+        node.id.startsWith('icon-') ||
+        node.id.startsWith('filter-') ||
+        node.id.startsWith('search-icon-') ||
+        node.id.startsWith('domain-') || 
+        node.id.startsWith('dragbar-') ||
+        !node.parentNode) {
+      console.log("Ignoring click on non-connectable node:", node.id, node);
+      return;
+    }
+    
+    console.log("Processing click on node:", node.id, "parent:", node.parentNode, "data:", node.data);
+    
+    // If this is a new connection (no source selected)
+    if (!connectionSource) {
+      // Verify this node has required data for connections
+      const parentNode = nodes.find(n => n.id === node.parentNode);
+      console.log("Retrieved parent node:", parentNode ? 
+        { id: parentNode.id, data: parentNode.data, type: parentNode.type } : "Not found");
+      
+      if (!parentNode || !parentNode.data || !parentNode.data.label) {
+        console.error("Cannot use node as connection source - missing parent domain info:", node);
+        console.error("Parent node details:", parentNode ? 
+          { id: parentNode.id, data: JSON.stringify(parentNode.data), parentId: node.parentNode } : 
+          { searchedForId: node.parentNode });
+        setError("Unable to start connection: Selected node doesn't have valid domain information.");
+        return;
+      }
+      
+      // Set the clicked node as the connection source
+      setConnectionSource(node);
+      console.log(`Connection source set: ${node.id} in domain ${parentNode.data.label}`);
+      return;
+    }
+    
+    // If we already have a source and this is a different node, complete the connection
+    if (connectionSource.id !== node.id) {
+      // Verify target node has required parent info
+      const targetParentNode = nodes.find(n => n.id === node.parentNode);
+      console.log("Retrieved target parent node:", targetParentNode ? 
+        { id: targetParentNode.id, data: targetParentNode.data, type: targetParentNode.type } : "Not found");
+      
+      if (!targetParentNode || !targetParentNode.data || !targetParentNode.data.label) {
+        console.error("Cannot use node as connection target - missing parent domain info:", node);
+        console.error("Target parent node details:", targetParentNode ? 
+          { id: targetParentNode.id, data: JSON.stringify(targetParentNode.data), parentId: node.parentNode } : 
+          { searchedForId: node.parentNode });
+        setError("Unable to complete connection: Target node doesn't have valid domain information.");
+        return;
+      }
+      
+      console.log(`Attempting connection: ${connectionSource.id} -> ${node.id}`);
+      
+      // Attempt to create the connection
+      completeLink(connectionSource.id, node.id)
+        .then(success => {
+          console.log(`Connection attempt from ${connectionSource.id} to ${node.id}: ${success ? 'Success' : 'Failed'}`);
+        })
+        .catch(err => {
+          console.error('Error completing connection:', err);
+        });
+    }
+  }, [isConnecting, connectionSource, setConnectionSource, completeLink, nodes, setActiveDomainConfig, setError]);
+
+  // Effect to cleanup after a connection is completed
+  useEffect(() => {
+    if (connectionSuccess) {
+      // Force a recalculation of the edges when a connection is successfully created
+      console.log("Connection successful - forcing edge recalculation");
+      
+      // Only do this once per successful connection
+      if (!connectionCompleted.current) {
+        connectionCompleted.current = true;
+        
+        // First update, to refresh immediately after success
+        setTimeout(() => {
+          if (showRelationshipLines) {
+            const forceRefresh = [...nodes]; 
+            setNodes(forceRefresh);
+          }
+        }, 100);
+        
+        // Second update, a bit later to catch any delayed data updates
+        setTimeout(() => {
+          if (showRelationshipLines) {
+            const forceRefresh = [...nodes];
+            setNodes(forceRefresh);
+            
+            // Reset the connection completed flag after the final refresh
+            setTimeout(() => {
+              connectionCompleted.current = false;
+            }, 500);
+          }
+        }, 1000);
+      }
+    }
+  }, [connectionSuccess, showRelationshipLines, nodes, setNodes]);
+
+  // Effect to cleanup after a connection is completed
+  useEffect(() => {
+    if (connectionSuccess) {
+      // Clear the connection success status after a delay
+      const timer = setTimeout(() => {
+        setConnectionSuccess(false);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [connectionSuccess]);
+
+  // Effect to clean up temporary edges when connection state changes
+  useEffect(() => {
+    if (!isConnecting) {
+      // Remove any temporary connection edge when not in connecting mode
+      setEdges(edges => edges.filter(edge => edge.id !== 'temp-connection-edge'));
+    }
+  }, [isConnecting, setEdges]);
+
+  // Add a function to delete a relationship
+  const handleDeleteRelationship = useCallback(async (edgeId) => {
+    try {
+      // Parse the edge ID to get details
+      const [sourceId, relationshipType, targetId] = edgeId.split('-');
+      
+      // Map relationship type to domain information
+      const domainPairs = {
+        'DRIVES': { fromDomain: 'Mission', toDomain: 'Scenario' },
+        'REQUIRES': { fromDomain: 'Scenario', toDomain: 'Requirements' },
+        'DEFINES': { fromDomain: 'Requirements', toDomain: 'Parameter' },
+        'INPUT_TO': { fromDomain: 'Parameter', toDomain: 'Functions' }
+      };
+      
+      // Get domain information for this relationship
+      const domainInfo = domainPairs[relationshipType];
+      if (!domainInfo) {
+        setError(`Unknown relationship type: ${relationshipType}`);
+        return;
+      }
+      
+      console.log(`Attempting to delete relationship: ${sourceId} (${domainInfo.fromDomain}) -> ${targetId} (${domainInfo.toDomain})`);
+      
+      // Make API call to delete the relationship
+      await fetchWithErrorHandling(createApiEndpoint('relationships'), {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fromId: sourceId,
+          toId: targetId,
+          fromDomain: domainInfo.fromDomain,
+          toDomain: domainInfo.toDomain,
+          relationshipType
+        })
+      });
+      
+      // Update local data to remove the relationship
+      const updateLocalData = () => {
+        if (domainInfo.fromDomain === 'Mission') {
+          setMissions(prev => prev.map(item => {
+            if (item.id === sourceId) {
+              return {
+                ...item,
+                drivenScenarioIds: (item.drivenScenarioIds || []).filter(id => id !== targetId)
+              };
+            }
+            return item;
+          }));
+        } else if (domainInfo.fromDomain === 'Scenario') {
+          setScenarios(prev => prev.map(item => {
+            if (item.id === sourceId) {
+              return {
+                ...item,
+                requiredRequirementIds: (item.requiredRequirementIds || []).filter(id => id !== targetId)
+              };
+            }
+            return item;
+          }));
+        } else if (domainInfo.fromDomain === 'Requirements') {
+          setRequirements(prev => prev.map(item => {
+            if (item.id === sourceId) {
+              return {
+                ...item,
+                definedParameterIds: (item.definedParameterIds || []).filter(id => id !== targetId)
+              };
+            }
+            return item;
+          }));
+        } else if (domainInfo.fromDomain === 'Parameter') {
+          setParameters(prev => prev.map(item => {
+            if (item.id === sourceId) {
+              return {
+                ...item,
+                inputToFunctionIds: (item.inputToFunctionIds || []).filter(id => id !== targetId)
+              };
+            }
+            return item;
+          }));
+        }
+      };
+      
+      // Update local data and refresh UI
+      updateLocalData();
+      
+      // Remove the edge from the UI
+      setEdges(prev => prev.filter(edge => edge.id !== edgeId));
+      
+      // Also refresh the API data
+      if (domainInfo.fromDomain === 'Mission') fetchMissions();
+      else if (domainInfo.fromDomain === 'Scenario') fetchScenarios();
+      else if (domainInfo.fromDomain === 'Requirements') fetchRequirements();
+      else if (domainInfo.fromDomain === 'Parameter') fetchParameters();
+      
+      if (domainInfo.toDomain === 'Scenario') fetchScenarios();
+      else if (domainInfo.toDomain === 'Requirements') fetchRequirements();
+      else if (domainInfo.toDomain === 'Parameter') fetchParameters();
+      else if (domainInfo.toDomain === 'Functions') fetchFunctions();
+      
+      setSuccessMessage('Relationship deleted successfully!');
+    } catch (e) {
+      console.error("Error deleting relationship:", e);
+      setError(`Failed to delete relationship: ${e.message}`);
+    }
+  }, [
+    fetchWithErrorHandling, 
+    setMissions, 
+    setScenarios, 
+    setRequirements, 
+    setParameters, 
+    fetchMissions, 
+    fetchScenarios, 
+    fetchRequirements, 
+    fetchParameters, 
+    fetchFunctions, 
+    setEdges, 
+    setError, 
+    setSuccessMessage
+  ]);
+
+  // Enhanced edge context menu handling
+  const onEdgeContextMenu = useCallback((event, edge) => {
+    // Prevent default context menu
+    event.preventDefault();
+    
+    // Extract relationship information from edge ID
+    const parts = edge.id.split('-');
+    if (parts.length < 3) return;
+    
+    const sourceId = parts[0];
+    const relationshipType = parts[1];
+    const targetId = parts[2];
+    
+    // Format relationship type for display
+    const formattedType = relationshipType
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+    
+    // Ask for confirmation with detailed information
+    if (window.confirm(
+      `Delete Relationship?\n\nFrom: ${sourceId}\nRelationship: ${formattedType}\nTo: ${targetId}\n\nThis action cannot be undone.`
+    )) {
+      handleDeleteRelationship(edge.id);
+    }
+  }, [handleDeleteRelationship]);
+
+  // Function to update app configuration
+  const updateConfig = useCallback(async (newConfig) => {
+    try {
+      const response = await fetchWithErrorHandling(createApiEndpoint('config'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newConfig)
+      });
+      setConfig(response);
+      return response;
+    } catch (e) {
+      setError(`Failed to update configuration: ${e.message}`);
+      throw e;
+    }
+  }, [fetchWithErrorHandling, setError]);
+
+  // Handle toggling adjacent connections setting
+  const handleSetAllowOnlyAdjacentConnections = useCallback(async (value) => {
+    if (!config) return;
+    
+    try {
+      // Update local state
+      setAllowOnlyAdjacentConnections(value);
+      
+      // Update server config
+      const newConfig = {
+        ...config,
+        allowOnlyAdjacentConnections: value
+      };
+      
+      await updateConfig(newConfig);
+      setSuccessMessage(value ? 
+        'Connection mode set to adjacent domains only' : 
+        'Connection mode set to allow cross-sequence connections');
+    } catch (error) {
+      console.error("Error updating connection mode:", error);
+      // Revert local state if server update fails
+      setAllowOnlyAdjacentConnections(!value);
+    }
+  }, [config, updateConfig, setSuccessMessage]);
+
+  // Update the updateLocalRelationship implementation
+  useEffect(() => {
+    // Function to update local data structures after creating a relationship
+    updateLocalRelationshipRef.current = (fromDomain, fromId, toId) => {
+      console.log(`Updating relationship: ${fromDomain} (${fromId}) -> ${toId}`);
+      
+      // Update local state based on domain type
+      if (fromDomain === 'Mission') {
+        setMissions(prev => prev.map(item => {
+          if (item.id === fromId) {
+            return {
+              ...item,
+              drivenScenarioIds: [...(item.drivenScenarioIds || []), toId]
+            };
+          }
+          return item;
+        }));
+      } else if (fromDomain === 'Scenario') {
+        setScenarios(prev => prev.map(item => {
+          if (item.id === fromId) {
+            return {
+              ...item,
+              requiredRequirementIds: [...(item.requiredRequirementIds || []), toId]
+            };
+          }
+          return item;
+        }));
+      } else if (fromDomain === 'Requirements') {
+        setRequirements(prev => prev.map(item => {
+          if (item.id === fromId) {
+            return {
+              ...item,
+              definedParameterIds: [...(item.definedParameterIds || []), toId]
+            };
+          }
+          return item;
+        }));
+      } else if (fromDomain === 'Parameter') {
+        setParameters(prev => prev.map(item => {
+          if (item.id === fromId) {
+            return {
+              ...item,
+              inputToFunctionIds: [...(item.inputToFunctionIds || []), toId]
+            };
+          }
+          return item;
+        }));
+      }
+
+      // Refresh the display by forcing a nodes update
+      setNodes([...nodes]);
+      
+      // Also refresh the API data
+      if (fromDomain === 'Mission') fetchMissions();
+      else if (fromDomain === 'Scenario') fetchScenarios();
+      else if (fromDomain === 'Requirements') fetchRequirements();
+      else if (fromDomain === 'Parameter') fetchParameters();
+      
+      // Refresh the target domain data as well
+      const targetDomainMap = {
+        'Mission': 'Scenario',
+        'Scenario': 'Requirements',
+        'Requirements': 'Parameter',
+        'Parameter': 'Functions'
+      };
+      
+      const targetDomain = targetDomainMap[fromDomain];
+      if (targetDomain === 'Scenario') fetchScenarios();
+      else if (targetDomain === 'Requirements') fetchRequirements();
+      else if (targetDomain === 'Parameter') fetchParameters();
+      else if (targetDomain === 'Functions') fetchFunctions();
+    };
+  }, [
+    setMissions, 
+    setScenarios, 
+    setRequirements, 
+    setParameters, 
+    nodes, 
+    setNodes, 
+    fetchMissions, 
+    fetchScenarios, 
+    fetchRequirements, 
+    fetchParameters, 
+    fetchFunctions
+  ]);
+
+  // Add effect to update only edge types when useCurvedEdges changes
+  useEffect(() => {
+    // Skip if there are no edges or we're still loading
+    if (edges.length === 0 || !appInitialized) return;
+    
+    console.log("Updating edge types based on curve preference...");
+    
+    // Update all edges to use the new edge type
+    const updatedEdges = edges.map(edge => ({
+      ...edge,
+      type: useCurvedEdges ? 
+        (edge.id === 'temp-connection-edge' ? 'simplebezier' : 'custom') : 
+        'straight'
+    }));
+    
+    setEdges(updatedEdges);
+  }, [useCurvedEdges, appInitialized, edges.length, setEdges]);
 
   // --- Main JSX for Flow View --- 
   return (
@@ -1139,6 +2237,15 @@ function FlowView() {
       {/* Only render React Flow when initialized */}
       {appInitialized && (
         <>
+          {/* Add Connector Toolbar */}
+          <ConnectorToolbar
+            onStartConnecting={handleStartConnecting}
+            onCancelConnecting={handleCancelConnecting}
+            isConnecting={isConnecting}
+            fromNode={connectionSource}
+            connectionSuccess={connectionSuccess}
+          />
+          
           {/* React Flow Canvas */} 
           <ReactFlow
             nodes={nodes}
@@ -1147,24 +2254,35 @@ function FlowView() {
             onEdgesChange={onEdgesChange}
             onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
-            onNodeClick={(event, node) => {
-              // Handle click on settings icon
-              if (node.id.startsWith('settings-icon-') && node.data.onClick) {
-                node.data.onClick();
-              }
-            }}
+            onNodeClick={handleNodeClick}
+            onNodeMouseEnter={handleNodeMouseEnter}
+            onNodeMouseLeave={handleNodeMouseLeave}
+            onMouseMove={handleMouseMove}
+            onEdgeContextMenu={onEdgeContextMenu}  // Add context menu for edges
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}  // Add edge types
             fitView
             snapToGrid={true}
             snapGrid={[20, 20]}
+            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+            panOnDrag={[2]} // Only pan when middle mouse button (2) is used
+            minZoom={0.5}
+            maxZoom={1.5}
+            nodesDraggable={true} // Ensure nodes are draggable
+            elementsSelectable={false} // Prevent selection by default
+            style={{ cursor: 'default' }} // Set default cursor for the flow area
+            proOptions={{ hideAttribution: true }}
           >
             <Background />
             <Controls />
             <MiniMap />
+            
+            {/* Remove the connectionPreview SVG section that's using undefined variables */}
             <Panel position="top-right">
               {/* ... panel content ... */}
             </Panel>
           </ReactFlow>
+          
           
           {/* Flow Controls with Legend and Display Options */}
           <FlowControls 
@@ -1174,6 +2292,11 @@ function FlowView() {
             setShowRelationshipLines={setShowRelationshipLines}
             showDomainIcons={showDomainIcons}
             setShowDomainIcons={setShowDomainIcons}
+            onStartConnecting={handleStartConnecting}
+            allowOnlyAdjacentConnections={allowOnlyAdjacentConnections}
+            setAllowOnlyAdjacentConnections={handleSetAllowOnlyAdjacentConnections}
+            useCurvedEdges={useCurvedEdges}
+            setUseCurvedEdges={setUseCurvedEdges}
           />
           
           {/* Domain Configuration Panel */}

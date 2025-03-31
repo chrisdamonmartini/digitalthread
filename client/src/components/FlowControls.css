@@ -127,4 +127,33 @@
   border: solid white;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
+}
+
+/* Connection button styles */
+.connection-button {
+  background-color: #00587c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: 'Segoe UI', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  transition: background-color 0.2s;
+}
+
+.connection-button:hover {
+  background-color: #003e59;
+}
+
+.connection-button:active {
+  background-color: #002d40;
+}
+
+.option-item {
+  margin-top: 6px;
 } 

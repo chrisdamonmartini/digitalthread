@@ -114,7 +114,51 @@ router.post('/', async (req, res) => {
     }
 });
 
-// TODO: Add routes for DELETE /relationships (more complex, needs relationship ID or from/to info)
+// DELETE /api/relationships - Delete a relationship between two items
+router.delete('/', async (req, res) => {
+    const { fromId, toId, fromDomain, toDomain, relationshipType } = req.body;
+
+    if (!fromId || !toId || !fromDomain || !toDomain || !relationshipType) {
+        return res.status(400).json({ error: 'Missing required fields (fromId, toId, fromDomain, toDomain, relationshipType)' });
+    }
+
+    const session = driver.session({ database: 'neo4j' });
+    try {
+        // Determine Node Labels
+        const fromLabel = getLabelForDomain(fromDomain);
+        const toLabel = getLabelForDomain(toDomain);
+
+        // Delete the specific relationship
+        const result = await session.run(
+            `MATCH (a {id: $fromId})-[r:${relationshipType}]->(b {id: $toId})
+             DELETE r
+             RETURN a.id as fromId, b.id as toId`, 
+            {
+                fromId: fromId,
+                toId: toId
+            }
+        );
+
+        if (result.records.length === 0) {
+            return res.status(404).json({ 
+                error: `Relationship not found between ${fromId} and ${toId} of type ${relationshipType}` 
+            });
+        }
+
+        res.status(200).json({
+            message: `Relationship '${relationshipType}' deleted successfully.`,
+            from: result.records[0].get('fromId'),
+            to: result.records[0].get('toId')
+        });
+
+    } catch (error) {
+        console.error('Error deleting relationship:', error);
+        res.status(500).json({ error: 'Failed to delete relationship', details: error.message });
+    } finally {
+        await session.close();
+    }
+});
+
 // TODO: Add routes for GET /relationships (e.g., get relationships for a specific node)
 
 module.exports = router; 

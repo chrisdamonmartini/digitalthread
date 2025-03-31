@@ -9,6 +9,24 @@ body, html {
   overflow: hidden;
 }
 
+/* Override ReactFlow's default grab cursor */
+.react-flow {
+  cursor: default !important;
+}
+
+.react-flow__pane {
+  cursor: default !important;
+}
+
+.react-flow__renderer {
+  cursor: default !important;
+}
+
+/* Only show grab cursor when actually dragging with middle mouse button */
+.react-flow__pane.dragging {
+  cursor: grabbing !important;
+}
+
 /* Ensure SVG icons display without outlines */
 svg, img {
   border: none;
@@ -566,4 +584,114 @@ main {
 .loading-message p {
   margin-bottom: 20px;
   color: #666;
+}
+
+/* Fix for ReactFlow cursors and interactions */
+.react-flow__renderer {
+  cursor: default !important;
+}
+
+.react-flow__pane {
+  cursor: default !important;
+}
+
+.react-flow__pane.dragging {
+  cursor: grabbing !important;
+}
+
+/* Make only domain containers draggable */
+.react-flow__node[id^="domain-"] {
+  cursor: default;
+}
+
+/* Custom style for the drag handle */
+.react-flow__node[id^="handle-"] {
+  cursor: grab;
+}
+
+.react-flow__node[id^="handle-"]:active {
+  cursor: grabbing;
+}
+
+/* Animation for connection path */
+@keyframes flowAnimation {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 1000;
+  }
+}
+
+/* Styles for connection mode */
+.react-flow__node[data-connection-highlighted="true"] {
+  z-index: 10 !important;
+}
+
+.react-flow__node[data-connection-target="true"] {
+  transition: all 0.3s ease;
+}
+
+/* Cursor styling during connection */
+.react-flow.connection-mode {
+  cursor: crosshair !important;
+}
+
+/* Styles for valid and invalid targets */
+.valid-target {
+  outline: 2px solid #00587c !important;
+  outline-offset: 2px;
+  transition: all 0.2s ease;
+}
+
+.invalid-target {
+  outline: 2px solid #f44336 !important;
+  outline-offset: 2px;
+  transition: all 0.2s ease;
+}
+
+/* Success animation */
+@keyframes successPulse {
+  0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}
+
+.connection-success {
+  animation: successPulse 0.8s;
+}
+
+/* Error animation */
+@keyframes errorPulse {
+  0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(244, 67, 54, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+}
+
+.connection-error {
+  animation: errorPulse 0.8s;
+}
+
+/* Connection Button in FlowControls */
+.connection-button {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background-color: #00587c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  width: 100%;
+  text-align: center;
+}
+
+.connection-button:hover {
+  background-color: #004666;
+}
+
+.connection-button:active {
+  background-color: #003850;
 }

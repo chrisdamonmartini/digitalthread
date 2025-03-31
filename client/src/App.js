@@ -1283,16 +1283,27 @@ function FlowView() {
           draggable: false,
           selectable: false,
           position: { x: 0, y: 0 },
-          data: { label: '⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯' },
+          data: { label: '' }, // Empty label instead of dots
           style: {
             width: columnWidth,
-            height: 4,
-            backgroundColor: '#eee',
+            height: 20, // Increased height for drag area
+            backgroundColor: 'transparent', // Transparent background
             cursor: 'grab',
             fontSize: '9px',
             color: '#666',
             textAlign: 'center',
-            pointerEvents: 'none' // Let clicks pass through to parent
+            pointerEvents: 'none', // Let clicks pass through to parent
+            backgroundImage: `
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px)
+            `,
+            backgroundSize: '10px 10px',
+            backgroundPosition: 'center 4px, center 12px, calc(50% - 15px) 4px, calc(50% - 15px) 12px, calc(50% + 15px) 4px, calc(50% + 15px) 12px',
+            backgroundRepeat: 'no-repeat'
           }
         });
 

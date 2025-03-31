@@ -493,12 +493,26 @@ function FlowView() {
     return saved !== null ? JSON.parse(saved) : true; // Default to showing lines
   });
 
+  // React Flow State
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+  // Add a function to refresh nodes and recalculate edges
+  const refreshNodes = useCallback(() => {
+    console.log("Manual refresh of nodes and edges triggered");
+    const currentNodes = [...nodes];
+    setNodes([]);
+    setTimeout(() => {
+      setNodes(currentNodes);
+    }, 20);
+  }, [nodes, setNodes]);
+
   // Save showRelationshipLines preference to localStorage and force edge refresh
   useEffect(() => {
     localStorage.setItem('showRelationshipLines', JSON.stringify(showRelationshipLines));
     
     // If we have edges and we're initialized, force a refresh when toggling visibility
-    if (appInitialized && edges.length > 0) {
+    if (appInitialized && edges && edges.length > 0) {
       console.log(`Relationship lines visibility changed to ${showRelationshipLines ? 'visible' : 'hidden'}`);
       
       if (!showRelationshipLines) {
@@ -512,7 +526,7 @@ function FlowView() {
         return () => clearTimeout(timer);
       }
     }
-  }, [showRelationshipLines, appInitialized, edges.length, setEdges, refreshNodes]);
+  }, [showRelationshipLines, appInitialized, edges, setEdges, refreshNodes]);
 
   // Add state for domain icons toggle
   const [showDomainIcons, setShowDomainIcons] = useState(true);
@@ -553,9 +567,6 @@ function FlowView() {
   const [domainFilters, setDomainFilters] = useState({});
   const [domainPositions, setDomainPositions] = useState({}); // Store domain positions
   
-  // React Flow State
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const nodeTypes = useMemo(() => ({
     custom: CustomNode,
     filter: FilterNode, // Register the FilterNode component
@@ -2470,7 +2481,7 @@ function FlowView() {
   // Add effect to update only edge types when lineType changes
   useEffect(() => {
     // Skip if there are no edges or we're still loading
-    if (edges.length === 0 || !appInitialized) return;
+    if (!edges || edges.length === 0 || !appInitialized) return;
     
     console.log("Updating edge types based on line type preference...");
     
@@ -2491,17 +2502,7 @@ function FlowView() {
     setTimeout(() => {
       setEdges(updatedEdges);
     }, 10);
-  }, [lineType, arrowheadType, appInitialized, edges.length, setEdges]);
-
-  // Add a function to refresh nodes and recalculate edges
-  const refreshNodes = useCallback(() => {
-    console.log("Manual refresh of nodes and edges triggered");
-    const currentNodes = [...nodes];
-    setNodes([]);
-    setTimeout(() => {
-      setNodes(currentNodes);
-    }, 20);
-  }, [nodes, setNodes]);
+  }, [lineType, arrowheadType, appInitialized, edges, setEdges]);
 
   // --- Main JSX for Flow View --- 
   return (

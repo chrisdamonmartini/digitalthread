@@ -1274,11 +1274,10 @@ function FlowView() {
               width: columnWidth, 
               height: parentHeight, 
               backgroundColor: 'white',
-              border: 'none', // Remove the border
-              borderRadius: '0px', // Remove border radius
-              boxShadow: 'none', // Remove box shadow
-              cursor: 'default',
-              outline: 'none' // Remove any outline
+              border: `1px solid ${domainColor}`,
+              borderRadius: '4px',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+              cursor: 'default'
           }
         });
 
@@ -1352,7 +1351,7 @@ function FlowView() {
           }
         }
 
-        // --- 3. Add Title Node (positioned based on icons) but hide the text ---
+        // --- 3. Add Title Node (positioned based on icons) but make it completely invisible ---
         const titleX = showDomainIcons ? parentPadding + 45 : parentPadding;
         const titleWidth = showDomainIcons ? nodeWidth - 45 : nodeWidth;
         
@@ -1368,7 +1367,7 @@ function FlowView() {
               fontFamily: "'Segoe UI', sans-serif",
               fontWeight: 'bold',
               fontSize: '1.2em', 
-              color: 'transparent', // Make text transparent to hide it
+              color: 'transparent', // Make text transparent
               textAlign: 'left',
               paddingBottom: '5px',
               backgroundColor: 'transparent',
@@ -1377,7 +1376,7 @@ function FlowView() {
               cursor: 'default',
               zIndex: 3, // Ensure title is above the handle
               pointerEvents: 'none',
-              opacity: 0 // Hide the text completely
+              display: 'none' // Hide it completely
           }
         });
 
@@ -2399,6 +2398,15 @@ function FlowView() {
       {/* Only render React Flow when initialized */}
       {appInitialized && (
         <>
+          {/* Add Connector Toolbar */}
+          <ConnectorToolbar
+            onStartConnecting={handleStartConnecting}
+            onCancelConnecting={handleCancelConnecting}
+            isConnecting={isConnecting}
+            fromNode={connectionSource}
+            connectionSuccess={connectionSuccess}
+          />
+          
           {/* React Flow Canvas */} 
           <ReactFlow
             nodes={nodes}

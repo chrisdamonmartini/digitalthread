@@ -1274,10 +1274,11 @@ function FlowView() {
               width: columnWidth, 
               height: parentHeight, 
               backgroundColor: 'white',
-              border: `1px solid ${domainColor}`,
-              borderRadius: '4px',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-              cursor: 'default'
+              border: 'none', // Remove the border
+              borderRadius: '0px', // Remove border radius
+              boxShadow: 'none', // Remove box shadow
+              cursor: 'default',
+              outline: 'none' // Remove any outline
           }
         });
 
@@ -1351,7 +1352,7 @@ function FlowView() {
           }
         }
 
-        // --- 3. Add Title Node (positioned based on icons) ---
+        // --- 3. Add Title Node (positioned based on icons) but hide the text ---
         const titleX = showDomainIcons ? parentPadding + 45 : parentPadding;
         const titleWidth = showDomainIcons ? nodeWidth - 45 : nodeWidth;
         
@@ -1367,7 +1368,7 @@ function FlowView() {
               fontFamily: "'Segoe UI', sans-serif",
               fontWeight: 'bold',
               fontSize: '1.2em', 
-              color: '#333',
+              color: 'transparent', // Make text transparent to hide it
               textAlign: 'left',
               paddingBottom: '5px',
               backgroundColor: 'transparent',
@@ -1375,7 +1376,8 @@ function FlowView() {
               outline: 'none',
               cursor: 'default',
               zIndex: 3, // Ensure title is above the handle
-              pointerEvents: 'none'
+              pointerEvents: 'none',
+              opacity: 0 // Hide the text completely
           }
         });
 
@@ -2397,15 +2399,6 @@ function FlowView() {
       {/* Only render React Flow when initialized */}
       {appInitialized && (
         <>
-          {/* Add Connector Toolbar */}
-          <ConnectorToolbar
-            onStartConnecting={handleStartConnecting}
-            onCancelConnecting={handleCancelConnecting}
-            isConnecting={isConnecting}
-            fromNode={connectionSource}
-            connectionSuccess={connectionSuccess}
-          />
-          
           {/* React Flow Canvas */} 
           <ReactFlow
             nodes={nodes}
@@ -2436,6 +2429,22 @@ function FlowView() {
             <Background />
             <Controls />
             <MiniMap />
+            
+            {/* Move Connector Toolbar inside ReactFlow to get it out of the header */}
+            <Panel position="top-center" style={{ 
+              background: 'transparent', 
+              border: 'none',
+              boxShadow: 'none'
+            }}>
+              <ConnectorToolbar
+                onStartConnecting={handleStartConnecting}
+                onCancelConnecting={handleCancelConnecting}
+                isConnecting={isConnecting}
+                fromNode={connectionSource}
+                connectionSuccess={connectionSuccess}
+                position={{ x: window.innerWidth / 2 - 175, y: 80 }} // Position it lower inside the FlowView
+              />
+            </Panel>
             
             {/* Add Relationship Legend (Bottom-Right) */}
             <Panel position="bottom-right" style={{ 

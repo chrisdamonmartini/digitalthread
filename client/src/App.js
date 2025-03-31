@@ -263,11 +263,13 @@ const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourc
       }
     });
     
+    // Get exact cursor position in ReactFlow space
+    const reactFlowBounds = document.querySelector('.react-flow').getBoundingClientRect();
+    const x = event.clientX - reactFlowBounds.left;
+    const y = event.clientY - reactFlowBounds.top;
+    
     // Set position to exact mouse position
-    setContextMenuPosition({ 
-      x: event.clientX, 
-      y: event.clientY 
-    });
+    setContextMenuPosition({ x, y });
     
     setShowDeleteIcon(true);
   };
@@ -324,7 +326,7 @@ const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourc
         onContextMenu={handleContextMenu}
       />
       
-      {/* Tooltip on hover - just show relationship type without IDs */}
+      {/* Tooltip on hover - ONLY show relationship type, nothing else */}
       {isHovered && (
         <g>
           <text
@@ -342,14 +344,18 @@ const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourc
         </g>
       )}
       
-      {/* Context menu with delete icon - positioned at exact mouse location */}
+      {/* Context menu with delete icon - positioned at exact mouse location in ReactFlow space */}
       {showDeleteIcon && (
         <foreignObject
           width={30}
           height={30}
           x={contextMenuPosition.x - 15}
           y={contextMenuPosition.y - 15}
-          style={{ overflow: 'visible', zIndex: 1000 }}
+          style={{ 
+            overflow: 'visible', 
+            zIndex: 1000,
+            pointerEvents: 'all' // Make sure it's clickable
+          }}
           className="edge-delete-icon"
           data-edge-id={id}
         >

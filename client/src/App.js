@@ -490,13 +490,29 @@ function FlowView() {
   // Add state for relationship lines toggle with localStorage support
   const [showRelationshipLines, setShowRelationshipLines] = useState(() => {
     const saved = localStorage.getItem('showRelationshipLines');
-    return saved !== null ? JSON.parse(saved) : true; // Change default to true
+    return saved !== null ? JSON.parse(saved) : true; // Default to showing lines
   });
 
-  // Save showRelationshipLines preference to localStorage
+  // Save showRelationshipLines preference to localStorage and force edge refresh
   useEffect(() => {
     localStorage.setItem('showRelationshipLines', JSON.stringify(showRelationshipLines));
-  }, [showRelationshipLines]);
+    
+    // If we have edges and we're initialized, force a refresh when toggling visibility
+    if (appInitialized && edges.length > 0) {
+      console.log(`Relationship lines visibility changed to ${showRelationshipLines ? 'visible' : 'hidden'}`);
+      
+      if (!showRelationshipLines) {
+        // Clear edges if hiding
+        setEdges([]);
+      } else {
+        // Force recalculation if showing
+        const timer = setTimeout(() => {
+          refreshNodes();
+        }, 50);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [showRelationshipLines, appInitialized, edges.length, setEdges, refreshNodes]);
 
   // Add state for domain icons toggle
   const [showDomainIcons, setShowDomainIcons] = useState(true);
@@ -2477,6 +2493,16 @@ function FlowView() {
     }, 10);
   }, [lineType, arrowheadType, appInitialized, edges.length, setEdges]);
 
+  // Add a function to refresh nodes and recalculate edges
+  const refreshNodes = useCallback(() => {
+    console.log("Manual refresh of nodes and edges triggered");
+    const currentNodes = [...nodes];
+    setNodes([]);
+    setTimeout(() => {
+      setNodes(currentNodes);
+    }, 20);
+  }, [nodes, setNodes]);
+
   // --- Main JSX for Flow View --- 
   return (
     <div className="flow-view-container" style={{ height: '100%' }}>
@@ -2532,7 +2558,10 @@ function FlowView() {
             <Panel position="top-center" style={{ 
               background: 'transparent', 
               border: 'none',
-              boxShadow: 'none'
+              boxShadow: 'none',
+              top: '150px', // Position it further down
+              left: '50%',
+              transform: 'translateX(-50%)'
             }}>
               <ConnectorToolbar
                 onStartConnecting={handleStartConnecting}
@@ -2540,7 +2569,7 @@ function FlowView() {
                 isConnecting={isConnecting}
                 fromNode={connectionSource}
                 connectionSuccess={connectionSuccess}
-                position={{ x: window.innerWidth / 2 - 175, y: 80 }} // Position it lower inside the FlowView
+                position={{ x: window.innerWidth / 2 - 175, y: 0 }} // Center horizontally, no vertical offset (Panel handles it)
               />
             </Panel>
             

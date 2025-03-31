@@ -1281,7 +1281,7 @@ function FlowView() {
           }
         });
 
-        // Add drag indicator at top of container
+        // Add drag indicator at top of container with no outline
         newNodes.push({
           id: `dragbar-${parentNodeId}`, // Changed to prevent potential conflicts
           type: 'default',
@@ -1309,7 +1309,11 @@ function FlowView() {
             `,
             backgroundSize: '10px 10px',
             backgroundPosition: 'center 4px, center 12px, calc(50% - 15px) 4px, calc(50% - 15px) 12px, calc(50% + 15px) 4px, calc(50% + 15px) 12px',
-            backgroundRepeat: 'no-repeat'
+            backgroundRepeat: 'no-repeat',
+            border: 'none', // Ensure no border
+            outline: 'none', // Ensure no outline
+            boxShadow: 'none', // Ensure no shadow
+            borderRadius: '0' // Ensure no border radius
           }
         });
 
@@ -1351,7 +1355,7 @@ function FlowView() {
           }
         }
 
-        // --- 3. Add Title Node (positioned based on icons) but make it completely invisible ---
+        // --- 3. Add Title Node (positioned based on icons) ---
         const titleX = showDomainIcons ? parentPadding + 45 : parentPadding;
         const titleWidth = showDomainIcons ? nodeWidth - 45 : nodeWidth;
         
@@ -1367,7 +1371,7 @@ function FlowView() {
               fontFamily: "'Segoe UI', sans-serif",
               fontWeight: 'bold',
               fontSize: '1.2em', 
-              color: 'transparent', // Make text transparent
+              color: '#333',
               textAlign: 'left',
               paddingBottom: '5px',
               backgroundColor: 'transparent',
@@ -1375,8 +1379,7 @@ function FlowView() {
               outline: 'none',
               cursor: 'default',
               zIndex: 3, // Ensure title is above the handle
-              pointerEvents: 'none',
-              display: 'none' // Hide it completely
+              pointerEvents: 'none'
           }
         });
 

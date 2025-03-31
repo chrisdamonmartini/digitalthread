@@ -28,10 +28,11 @@
 }
 
 .header-title-new {
-    margin: 0;
-    font-size: 1.1em; /* Smaller font size */
-    font-weight: 500;
+    font-size: 18px;
+    font-weight: 600;
     color: white;
+    margin-left: 10px;
+    letter-spacing: 0.5px;
 }
 
 .header-right {

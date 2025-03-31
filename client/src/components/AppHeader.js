@@ -21,7 +21,7 @@ function AppHeader() {
                     {/* Left side can contain icons/main nav later */} 
                     <div className="header-left">
                          {/* Placeholder for left icons/nav */}
-                         <span className="header-title-new">Digital Thread Navigator</span>
+                         <span className="header-title-new">Thread Xplorer</span>
                     </div>
                     {/* Right side */} 
                     <div className="header-right">

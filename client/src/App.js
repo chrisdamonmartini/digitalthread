@@ -176,9 +176,11 @@ function getRelationshipType(sourceDomain, targetDomain) {
     return 'RELATES_TO'; 
 }
 
-// Create a custom edge component with hover effect
+// Create a custom edge component with right-click menu and color-coded highlighting
 const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [showDeleteIcon, setShowDeleteIcon] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   
   // Calculate the path based on source and target positions
   const [edgePath, labelX, labelY] = getSmoothStepPath({
@@ -190,61 +192,187 @@ const CustomEdge = ({ id, source, target, style, markerEnd, data, sourceX, sourc
     targetPosition,
   });
 
-  // Extract relationship type for display
+  // Extract relationship type and domains for color
   let displayRelationship = "Relationship";
+  let relationshipType = "";
+  let sourceDomain = "";
+  let targetDomain = "";
+  
   if (id) {
     const parts = id.split('-');
     if (parts.length >= 2) {
+      relationshipType = parts[1];
       // Format the relationship type for display
       displayRelationship = parts[1].replace(/_/g, ' ').toLowerCase();
     }
+    
+    // Extract domain information if available
+    const sourceNode = document.getElementById(source);
+    const targetNode = document.getElementById(target);
+    
+    if (sourceNode && sourceNode.getAttribute('data-domain')) {
+      sourceDomain = sourceNode.getAttribute('data-domain');
+    }
+    
+    if (targetNode && targetNode.getAttribute('data-domain')) {
+      targetDomain = targetNode.getAttribute('data-domain');
+    }
   }
   
-  // For tooltip positioning
-  const centerX = (sourceX + targetX) / 2;
-  const centerY = (sourceY + targetY) / 2 - 15;
+  // Get the appropriate color for this relationship type
+  const getRelationshipColor = () => {
+    // Map relationship types to colors (these should match your legend)
+    switch (relationshipType) {
+      case 'DRIVES': return '#3f83f8'; // blue
+      case 'REQUIRES': return '#16a34a'; // green
+      case 'DEFINES': return '#9333ea'; // purple
+      case 'INPUT_TO': return '#f97316'; // orange
+      default: return '#6b7280'; // gray for default
+    }
+  };
+  
+  const relationshipColor = getRelationshipColor();
+  
+  // Create a custom colored marker for the line
+  const getColoredMarker = () => {
+    const markerId = `marker-${id}`;
+    return (
+      <marker
+        id={markerId}
+        viewBox="0 0 10 10"
+        refX="5"
+        refY="5"
+        markerWidth="6"
+        markerHeight="6"
+        orient="auto-start-reverse"
+      >
+        <path d="M 0 0 L 10 5 L 0 10 z" fill={relationshipColor} />
+      </marker>
+    );
+  };
+  
+  // Handler for right-click to show delete icon
+  const handleContextMenu = (event) => {
+    event.preventDefault(); // Prevent the browser's context menu
+    event.stopPropagation();
+    
+    // Hide any existing delete icons first (globally)
+    document.querySelectorAll('.edge-delete-icon').forEach(el => {
+      if (el.getAttribute('data-edge-id') !== id) {
+        el.style.display = 'none';
+      }
+    });
+    
+    // Set position to exact mouse position
+    setContextMenuPosition({ 
+      x: event.clientX, 
+      y: event.clientY 
+    });
+    
+    setShowDeleteIcon(true);
+  };
+  
+  // Handler for delete button click
+  const handleDeleteClick = (event) => {
+    event.stopPropagation();
+    setShowDeleteIcon(false);
+    
+    // Extract relationship information from edge ID
+    const parts = id.split('-');
+    if (parts.length < 3) return;
+    
+    // Call the global function for deleting relationships
+    window.handleDeleteRelationship(id);
+  };
+  
+  // Close context menu when clicking elsewhere
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Only close this specific edge's delete icon
+      if (showDeleteIcon) {
+        setShowDeleteIcon(false);
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showDeleteIcon]);
   
   return (
     <>
+      {/* Add a custom marker with the right color */}
+      <defs>
+        {getColoredMarker()}
+      </defs>
+      
       <path
         id={id}
         className="react-flow__edge-path"
         d={edgePath}
         style={{
           ...style,
+          stroke: relationshipColor,
           strokeWidth: isHovered ? 4 : style?.strokeWidth || 2,
-          transition: 'stroke-width 0.2s',
-          cursor: 'context-menu'
+          transition: 'stroke-width 0.2s, stroke 0.2s',
+          cursor: 'pointer'
         }}
-        markerEnd={markerEnd}
+        markerEnd={`url(#marker-${id})`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onContextMenu={handleContextMenu}
       />
       
+      {/* Tooltip on hover - just show relationship type without IDs */}
       {isHovered && (
         <g>
-          <rect
-            x={centerX - 60}
-            y={centerY - 15}
-            width={120}
-            height={30}
-            rx={5}
-            fill="white"
-            fillOpacity={0.9}
-            stroke="#00587c"
-            strokeWidth={1}
-          />
           <text
-            x={centerX}
-            y={centerY + 5}
+            x={(sourceX + targetX) / 2}
+            y={(sourceY + targetY) / 2 - 10}
             textAnchor="middle"
             dominantBaseline="middle"
             fontSize={10}
-            fill="#333"
+            fill={relationshipColor}
+            fontWeight="bold"
+            style={{ pointerEvents: 'none' }}
           >
-            {`${source} ${displayRelationship} ${target}`}
+            {displayRelationship.toUpperCase()}
           </text>
         </g>
+      )}
+      
+      {/* Context menu with delete icon - positioned at exact mouse location */}
+      {showDeleteIcon && (
+        <foreignObject
+          width={30}
+          height={30}
+          x={contextMenuPosition.x - 15}
+          y={contextMenuPosition.y - 15}
+          style={{ overflow: 'visible', zIndex: 1000 }}
+          className="edge-delete-icon"
+          data-edge-id={id}
+        >
+          <div 
+            style={{
+              background: 'white',
+              borderRadius: '50%',
+              width: '30px',
+              height: '30px',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+              cursor: 'pointer',
+              border: '1px solid #ddd'
+            }}
+            onClick={handleDeleteClick}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="#ff4d4f"/>
+            </svg>
+          </div>
+        </foreignObject>
       )}
     </>
   );
@@ -289,6 +417,34 @@ const EdgeTooltip = ({ x, y, label }) => {
   );
 };
 
+// Add a legend component to display relationship types and colors
+const RelationshipLegend = () => {
+  const relationships = [
+    { type: 'DRIVES', label: 'Drives', color: '#3f83f8' },
+    { type: 'REQUIRES', label: 'Requires', color: '#16a34a' },
+    { type: 'DEFINES', label: 'Defines', color: '#9333ea' },
+    { type: 'INPUT_TO', label: 'Input To', color: '#f97316' },
+    { type: 'RELATES_TO', label: 'Relates To', color: '#6b7280' }
+  ];
+
+  return (
+    <div className="relationship-legend">
+      <h3>Relationship Types</h3>
+      <div className="legend-items">
+        {relationships.map(rel => (
+          <div key={rel.type} className="legend-item">
+            <span 
+              className="legend-color" 
+              style={{ backgroundColor: rel.color }}
+            ></span>
+            <span className="legend-label">{rel.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // Main content for the React Flow view
 function FlowView() { 
   // --- State needed ONLY for the Flow View --- 
@@ -317,7 +473,7 @@ function FlowView() {
   // Add state for relationship lines toggle with localStorage support
   const [showRelationshipLines, setShowRelationshipLines] = useState(() => {
     const saved = localStorage.getItem('showRelationshipLines');
-    return saved !== null ? JSON.parse(saved) : false;
+    return saved !== null ? JSON.parse(saved) : true; // Change default to true
   });
 
   // Save showRelationshipLines preference to localStorage
@@ -1561,17 +1717,17 @@ function FlowView() {
     // Minimum spacing between domains - increase this to prevent any overlap
     const minDomainSpacing = 40; // Increased spacing between domains
     
-    // Boundaries to keep nodes within visible area
-    const minX = 20; // Minimum X position
-    const minY = 0;  // Minimum Y position
+    // Remove minimum boundary constraints to allow free movement in all directions
+    // const minX = 20; // Minimum X position - REMOVED
+    // const minY = 0;  // Minimum Y position - REMOVED
     
-    // Check if node is being dragged outside boundaries
-    if (currentNodeX < minX) {
-      node.position.x = minX;
-    }
-    if (currentNodeY < minY) {
-      node.position.y = minY;
-    }
+    // Check if node is being dragged outside boundaries - REMOVED
+    // if (currentNodeX < minX) {
+    //   node.position.x = minX;
+    // }
+    // if (currentNodeY < minY) {
+    //   node.position.y = minY;
+    // }
     
     // Flag to track if position was adjusted due to collision
     let positionAdjusted = false;
@@ -2041,34 +2197,21 @@ function FlowView() {
     setSuccessMessage
   ]);
 
-  // Enhanced edge context menu handling
-  const onEdgeContextMenu = useCallback((event, edge) => {
-    // Prevent default context menu
-    event.preventDefault();
-    
-    // Extract relationship information from edge ID
-    const parts = edge.id.split('-');
-    if (parts.length < 3) return;
-    
-    const sourceId = parts[0];
-    const relationshipType = parts[1];
-    const targetId = parts[2];
-    
-    // Format relationship type for display
-    const formattedType = relationshipType
-      .replace(/_/g, ' ')
-      .toLowerCase()
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-    
-    // Ask for confirmation with detailed information
-    if (window.confirm(
-      `Delete Relationship?\n\nFrom: ${sourceId}\nRelationship: ${formattedType}\nTo: ${targetId}\n\nThis action cannot be undone.`
-    )) {
-      handleDeleteRelationship(edge.id);
-    }
+  // Make handleDeleteRelationship available globally
+  useEffect(() => {
+    window.handleDeleteRelationship = handleDeleteRelationship;
+    // Cleanup when component unmounts
+    return () => {
+      delete window.handleDeleteRelationship;
+    };
   }, [handleDeleteRelationship]);
+
+  // Enhanced edge context menu handling
+  const onEdgeContextMenu = (event, edge) => {
+    // This function is no longer needed as we handle context menu in the CustomEdge component
+    // The CustomEdge component now handles all right-click interactions directly
+    event.preventDefault();
+  };
 
   // Function to update app configuration
   const updateConfig = useCallback(async (newConfig) => {
@@ -2277,12 +2420,17 @@ function FlowView() {
             <Controls />
             <MiniMap />
             
-            {/* Remove the connectionPreview SVG section that's using undefined variables */}
-            <Panel position="top-right">
-              {/* ... panel content ... */}
+            {/* Add Relationship Legend (Bottom-Right) */}
+            <Panel position="bottom-right" style={{ 
+              padding: '10px', 
+              background: 'white', 
+              borderRadius: '5px', 
+              boxShadow: '0 1px 4px rgba(0,0,0,0.2)', 
+              marginBottom: '40px' 
+            }}>
+              <RelationshipLegend />
             </Panel>
           </ReactFlow>
-          
           
           {/* Flow Controls with Legend and Display Options */}
           <FlowControls 

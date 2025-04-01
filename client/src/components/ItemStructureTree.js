@@ -120,14 +120,14 @@ const ItemStructureTree = forwardRef(({ itemStructure, onDelete, onRename }, ref
 
     // Attempt 1: Process HAS_CHILD relationships (Old format)
     if (data.HAS_CHILD && Array.isArray(data.HAS_CHILD) && data.HAS_CHILD.length > 0) {
-      console.log(`Normalizing ${id} using HAS_CHILD`);
+      console.log(`Normalizing ${data.id} using HAS_CHILD`);
       result.children = data.HAS_CHILD.map(child => normalizeData(child));
     }
     // Attempt 2: Process child<Domain>Ids array (Newer format from data fetch/AI gen)
     else {
       const childIdKey = `child${type}Ids`; // e.g., childRequirementsIds
       if (data[childIdKey] && Array.isArray(data[childIdKey])) {
-        console.log(`Normalizing ${id} using ${childIdKey}`);
+        console.log(`Normalizing ${data.id} using ${childIdKey}`);
         // NOTE: This assumes the child IDs array contains IDs only, not full objects.
         // If the search result *already* embedded full child objects here, this won't work directly.
         // For now, we assume it's just IDs, and the tree relies on the flat list from search.

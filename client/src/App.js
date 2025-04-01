@@ -1230,6 +1230,18 @@ function FlowView() {
       return item && item[childIdKey] && item[childIdKey].length > 0;
     };
 
+    // Function to create non-draggable node properties (needs to be defined early)
+    const createNonDraggableNode = (node) => ({
+      ...node,
+      draggable: false,
+      selectable: false,
+      style: {
+        ...node.style,
+        // Allow pointer events only for settings icon
+        pointerEvents: node.id.startsWith('settings-icon-') ? 'all' : 'none' 
+      }
+    });
+
     let currentColumnX = columnStartX;
 
     localDomainOrder.forEach((domainName) => {
@@ -1246,17 +1258,6 @@ function FlowView() {
         const searchIconSize = 16;
         const filterBoxWidth = nodeWidth * 0.85;
         const filterBoxY = parentPadding + parentTitleHeight + 30;
-
-        // Function to create non-draggable node properties (needs to be defined early)
-        const createNonDraggableNode = (node) => ({
-          ...node,
-          draggable: false,
-          selectable: false,
-          style: {
-            ...node.style,
-            pointerEvents: node.id.startsWith('settings-icon-') ? 'all' : 'none'
-          }
-        });
 
         // --- Calculate required height for children recursively --- 
         let totalContentHeight = 0;
@@ -1519,7 +1520,7 @@ function FlowView() {
         // --- Recursive function to add item nodes --- 
         const processNodeAndChildren = (itemId, parentNodeId, currentX, startY, depth) => {
             const item = itemMap.get(itemId);
-            if (!item) return { yOffset: 0 }; // Should not happen if data is consistent
+            if (!item) return { yOffset: 0 };
             
             // Apply filter text
             const filterText = (domainFilters[parentNodeId] || '').toLowerCase();
@@ -1574,7 +1575,7 @@ function FlowView() {
                 });
             }
 
-            let cumulativeYOffset = calculatedNodeHeight; // Start with the height of the current node
+            let cumulativeYOffset = calculatedNodeHeight;
             
             // Only process children if the current node matches the filter AND is expanded
             if (itemMatchesFilter && isExpanded && hasChildren) {
@@ -1590,21 +1591,19 @@ function FlowView() {
                  });
             }
             
-            // Return the total height occupied by this visible branch
             return { yOffset: itemMatchesFilter ? cumulativeYOffset : 0 };
         };
 
-        // --- 6. Process top-level items --- 
+        // --- 7. Process top-level items --- 
         let currentRelativeY = startYOffsetForItems; 
         topLevelItems.forEach(topItem => {
              const { yOffset: branchHeight } = processNodeAndChildren(
                  topItem.id, 
                  parentNodeId, 
-                 parentPadding, // Start X position for top-level items
+                 parentPadding, 
                  currentRelativeY, 
-                 0 // Depth 0
+                 0 
              );
-             // Only add gap if the branch actually rendered something
              if (branchHeight > 0) {
                 currentRelativeY += branchHeight + nodeGapY; 
              }

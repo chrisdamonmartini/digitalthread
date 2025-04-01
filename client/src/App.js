@@ -2466,8 +2466,9 @@ function FlowView() {
     
     // CRITICAL: Also refresh the domain display configurations
     console.log("Refreshing domain display configurations...");
+    console.log("Before refresh, domainDisplayConfig:", JSON.stringify(domainDisplayConfig));
     fetchDomainDisplayConfigs();
-  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions, fetchDomainDisplayConfigs]);
+  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions, fetchDomainDisplayConfigs, domainDisplayConfig]);
 
   // --- Main JSX for Flow View --- 
   return (

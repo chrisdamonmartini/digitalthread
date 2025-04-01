@@ -390,7 +390,7 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
                 </button>
               </div>
 
-              <div className="selected-items-list">
+              <div className="selected-items-list" key={`selected-list-${selectedItems.length}`}>
                 <h4>Selected Display Items:</h4>
                 {selectedItems.length === 0 ? (
                   <p className="no-items-message">

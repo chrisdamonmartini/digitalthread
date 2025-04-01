@@ -8,7 +8,7 @@ async function getRequirementStartIdNum() {
   const session = driver.session({ database: 'neo4j' });
   try {
     const result = await session.run(
-      `MATCH (r:Requirement) // Use :Requirement label
+      `MATCH (r:Requirements) // Use :Requirements label (plural)
        WHERE r.id STARTS WITH 'REQ-' // Use REQ- prefix
        WITH r.id AS id
        ORDER BY id DESC LIMIT 1
@@ -46,13 +46,13 @@ router.post('/', async (req, res) => {
     requirementId = `REQ-${String(nextNum).padStart(3, '0')}`; // Use REQ- prefix
 
     // Optional: Check for ID collision
-    const checkResult = await session.run('MATCH (r:Requirement {id: $id}) RETURN r', { id: requirementId });
+    const checkResult = await session.run('MATCH (r:Requirements {id: $id}) RETURN r', { id: requirementId });
     if (checkResult.records.length > 0) {
          return res.status(409).json({ error: `Requirement ID ${requirementId} already exists. Please try again.` });
     }
 
     const result = await session.run(
-      `CREATE (r:Requirement { // Use :Requirement label
+      `CREATE (r:Requirements { // Use :Requirements label (plural)
          id: $id,
          title: $title,
          description: $description,
@@ -87,7 +87,7 @@ router.get('/', async (req, res) => {
   const session = driver.session({ database: 'neo4j' });
   try {
     const result = await session.run(
-      `MATCH (r:Requirement)
+      `MATCH (r:Requirements)
        OPTIONAL MATCH (s:Scenario)-[:REQUIRES]->(r)
        OPTIONAL MATCH (r)-[:DEFINES]->(p:Parameter)
        RETURN r,
@@ -162,7 +162,7 @@ router.post('/bulk-generate', async (req, res) => {
     // Use UNWIND for bulk creation (adapted for Requirements)
     await session.run(
         `UNWIND $items AS item
-         CREATE (parent:Requirement { // Use :Requirement label
+         CREATE (parent:Requirements { // Use :Requirements label (plural)
              id: item.id,
              title: item.title,
              description: item.description,
@@ -171,7 +171,7 @@ router.post('/bulk-generate', async (req, res) => {
          })
          WITH parent, item.children AS childrenData
          UNWIND childrenData AS childData
-         CREATE (child:Requirement { // Use :Requirement label for children too
+         CREATE (child:Requirements { // Use :Requirements label (plural) for children too
              id: childData.id,
              title: childData.title,
              description: childData.description,

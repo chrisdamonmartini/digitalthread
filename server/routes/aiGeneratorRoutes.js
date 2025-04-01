@@ -812,10 +812,19 @@ async function saveApprovedItems(session, domain, items, connectToNext) {
         dbItem[childIdKeyForSave] = Array.isArray(dbItem[childIdKeyForSave]) ? dbItem[childIdKeyForSave] : [];
       }
 
+      // Use UNWIND for efficient bulk creation/update
+      const query = `
+        UNWIND $items AS itemData
+        MERGE (item:${domain} {id: itemData.id}) // Use domainConfig.label
+        ON CREATE SET item = itemData, item.createdAt = datetime(), item.updatedAt = datetime()
+        ON MATCH SET item += itemData, item.updatedAt = datetime()
+        RETURN count(item) as itemsProcessed
+      `;
+
       // Create the node in Neo4j
-      await tx.run(
-        `CREATE (n:${domain} $item) RETURN n`,
-        { item: dbItem }
+      const result = await tx.run(
+        query,
+        { items: [dbItem] }
       );
       
       itemsCreated++;

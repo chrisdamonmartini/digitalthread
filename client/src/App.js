@@ -536,6 +536,22 @@ function FlowView() {
   const [domainFilters, setDomainFilters] = useState({});
   const [domainPositions, setDomainPositions] = useState({}); // Store domain positions
   
+  // Memoized callback for updating filters
+  const updateDomainFilter = useCallback((domainId, filterText) => {
+    setDomainFilters(prev => ({
+      ...prev,
+      [domainId]: filterText
+    }));
+  }, [setDomainFilters]);
+
+  // Memoized callback for storing domain positions
+  const storeDomainPosition = useCallback((nodeId, position) => {
+    setDomainPositions(prev => ({
+      ...prev,
+      [nodeId]: position
+    }));
+  }, [setDomainPositions]);
+
   const nodeTypes = useMemo(() => ({
     custom: CustomNode,
     filter: FilterNode, // Register the FilterNode component
@@ -1109,22 +1125,6 @@ function FlowView() {
       setLinkingState({ fromId: null, fromDomain: null });
       console.log('Linking cancelled');
   }, [setLinkingState]);
-
-  // Function to update filter for a specific domain
-  const updateDomainFilter = useCallback((domainId, filterText) => {
-    setDomainFilters(prev => ({
-      ...prev,
-      [domainId]: filterText
-    }));
-  }, [setDomainFilters]);
-
-  // Keep track of original domain positions
-  const storeDomainPosition = useCallback((nodeId, position) => {
-    setDomainPositions(prev => ({
-      ...prev,
-      [nodeId]: position
-    }));
-  }, [setDomainPositions]);
 
   // Function to handle settings icon click
   const handleDomainSettingsClick = useCallback((domainName) => {
@@ -1778,13 +1778,10 @@ function FlowView() {
     localDomainOrder, appConfig, nodeDisplayMode, showRelationshipLines, showDomainIcons,
     isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
     domainFilters, // Add domainFilters as a dependency
-    updateDomainFilter, // Add updateDomainFilter as a dependency
     setNodes, setEdges,
-    handleDomainSettingsClick,
     domainDisplayConfig,
     isLoadingDisplayConfig, // Add loading state as dependency
     domainColors, // Add domainColors as a dependency
-    useCurvedEdges,
     domainPositions, // Add domainPositions as a dependency to preserve positions
     lineType,
     arrowheadType

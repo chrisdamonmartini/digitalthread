@@ -1373,7 +1373,7 @@ function FlowView() {
           id: parentNodeId,
           type: 'default',
           position: usePosition,
-          data: { label: '' },  // Remove the domain name label that shows at the top
+          data: { domainName: domainName }, // Store domain name here
           draggable: true, // Parent node must be draggable
           selectable: false,
           style: { 
@@ -1717,9 +1717,9 @@ function FlowView() {
             if (edgeIds.has(edgeId)) return;
             edgeIds.add(edgeId);
             
-            // Check if the source and target nodes exist in the current nodes array
-            const sourceExists = nodes.some(node => node.id === sourceId);
-            const targetExists = nodes.some(node => node.id === targetId);
+            // Check if the source and target nodes exist in the *current* nodes being calculated
+            const sourceExists = newNodes.some(n => n.id === sourceId);
+            const targetExists = newNodes.some(n => n.id === targetId);
             
             if (sourceExists && targetExists) {
               edgeCount++;
@@ -2114,7 +2114,9 @@ function FlowView() {
       console.log("Retrieved parent node:", parentNode ? 
         { id: parentNode.id, data: parentNode.data, type: parentNode.type } : "Not found");
       
-      if (!parentNode || !parentNode.data || !parentNode.data.label) {
+      const domainName = parentNode?.data?.domainName; // Get domain name from parent data
+
+      if (!parentNode || !domainName) {
         console.error("Cannot use node as connection source - missing parent domain info:", node);
         console.error("Parent node details:", parentNode ? 
           { id: parentNode.id, data: JSON.stringify(parentNode.data), parentId: node.parentNode } : 
@@ -2124,8 +2126,8 @@ function FlowView() {
       }
       
       // Set the clicked node as the connection source
-      setConnectionSource(node);
-      console.log(`Connection source set: ${node.id} in domain ${parentNode.data.label}`);
+      setConnectionSource(node); // Store the actual node object
+      console.log(`Connection source set: ${node.id} in domain ${domainName}`);
       return;
     }
     
@@ -2136,7 +2138,9 @@ function FlowView() {
       console.log("Retrieved target parent node:", targetParentNode ? 
         { id: targetParentNode.id, data: targetParentNode.data, type: targetParentNode.type } : "Not found");
       
-      if (!targetParentNode || !targetParentNode.data || !targetParentNode.data.label) {
+      const targetDomainName = targetParentNode?.data?.domainName; // Get domain name from target parent
+
+      if (!targetParentNode || !targetDomainName) {
         console.error("Cannot use node as connection target - missing parent domain info:", node);
         console.error("Target parent node details:", targetParentNode ? 
           { id: targetParentNode.id, data: JSON.stringify(targetParentNode.data), parentId: node.parentNode } : 

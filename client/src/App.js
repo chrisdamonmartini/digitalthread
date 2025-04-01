@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from 'react';
 import ReactFlow, { ReactFlowProvider, Background, Controls, useNodesState, useEdgesState, MarkerType, applyNodeChanges, applyEdgeChanges, MiniMap, Panel, getBezierPath, getSmoothStepPath, getStraightPath } from 'reactflow'; // Import React Flow components with additional path functions
 import { Routes, Route } from 'react-router-dom'; // Import routing components
 import 'reactflow/dist/style.css'; // Import default styles
@@ -465,6 +465,18 @@ const RelationshipLegend = () => {
 // Main content for the React Flow view
 function FlowView() { 
   // --- State needed ONLY for the Flow View --- 
+  const { appConfig, setAppConfig } = useContext(AppContext);
+  
+  // Add a state to force updates when needed
+  const [forceUpdate, setForceUpdate] = useState(0);
+  
+  // Add a reference to the last fetched display config
+  const lastFetchedDisplayConfig = useRef({});
+  
+  // React Flow State
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  
   const [missions, setMissions] = useState([]);
   const [isLoadingMissions, setIsLoadingMissions] = useState(true); 
   const [scenarios, setScenarios] = useState([]);
@@ -477,7 +489,6 @@ function FlowView() {
   const [isLoadingFunctions, setIsLoadingFunctions] = useState(true);
   
   // Re-add config state needed for layout
-  const [appConfig, setAppConfig] = useState(null); 
   const [localDomainOrder, setLocalDomainOrder] = useState([]); 
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   
@@ -492,10 +503,6 @@ function FlowView() {
     const saved = localStorage.getItem('showRelationshipLines');
     return saved !== null ? JSON.parse(saved) : true; // Default to showing lines
   });
-
-  // React Flow State
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   // Add state for domain icons toggle
   const [showDomainIcons, setShowDomainIcons] = useState(true);
@@ -1796,8 +1803,9 @@ function FlowView() {
     setEdges(newEdges);
 
   }, [ // Dependencies 
-    missions, scenarios, requirements, parameters, functions,
-    localDomainOrder, appConfig, nodeDisplayMode, showRelationshipLines, showDomainIcons,
+    localDomainOrder, missions, scenarios, requirements, parameters, functions, 
+    allowOnlyAdjacentConnections, nodeDisplayMode, useCurvedEdges, showRelationshipLines, lineType, arrowheadType,
+    domainPositions, expandedNodes, appConfig, nodeWidth, childIdSets, childFunctionIds, 
     isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
     domainFilters, 
     setNodes, setEdges,
@@ -1808,7 +1816,8 @@ function FlowView() {
     lineType,
     arrowheadType,
     expandedNodes, // Add dependency on expansion state
-    toggleNodeExpansion // Add dependency on the toggle function
+    toggleNodeExpansion, // Add dependency on the toggle function
+    forceUpdate 
   ]);
 
   // Define a function to handle when a node is dragged
@@ -2476,6 +2485,33 @@ function FlowView() {
     
     console.log("Refresh complete - UI should update soon");
   }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions, fetchDomainDisplayConfigs]);
+
+  // Add a useEffect to monitor changes to domainDisplayConfig and force a rerender
+  useEffect(() => {
+    console.log("domainDisplayConfig changed:", domainDisplayConfig);
+    
+    // If we have Requirements domain config and it has items, log it
+    const reqConfig = domainDisplayConfig?.Requirements;
+    if (reqConfig && Array.isArray(reqConfig) && reqConfig.length > 0) {
+      console.log(`Requirements config has ${reqConfig.length} items:`, reqConfig);
+    } else {
+      console.log("No Requirements display config items found");
+    }
+    
+    // Force recalculation of nodes if we have display configs and domain data
+    if (Object.keys(domainDisplayConfig).length > 0 && 
+        !isLoadingMissions && !isLoadingScenarios && 
+        !isLoadingRequirements && !isLoadingParameters && 
+        !isLoadingFunctions) {
+      console.log("Force updating nodes after domainDisplayConfig change");
+      
+      // Use a timeout to ensure the state update has propagated
+      setTimeout(() => {
+        // This will trigger the node calculation useEffect
+        setForceUpdate(prev => prev + 1);
+      }, 200);
+    }
+  }, [domainDisplayConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions]);
 
   // --- Main JSX for Flow View --- 
   return (

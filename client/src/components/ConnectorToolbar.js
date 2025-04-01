@@ -7,13 +7,19 @@ const ConnectorToolbar = ({
   isConnecting,
   fromNode,
   connectionSuccess = false,
-  position = { x: window.innerWidth / 2 - 175, y: 20 } // Default position at top center
+  position = { top: 130, left: 510 } // Updated default position
 }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [toolbarPosition, setToolbarPosition] = useState(position);
+  // Initialize toolbarPosition from the position prop
+  const [toolbarPosition, setToolbarPosition] = useState({ x: position.left, y: position.top });
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const toolbarRef = useRef(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
+
+  // Update toolbar position if the prop changes (e.g., window resize)
+  useEffect(() => {
+    setToolbarPosition({ x: position.left, y: position.top });
+  }, [position.top, position.left]);
 
   // Format node info for display
   const getNodeDisplayInfo = (node) => {

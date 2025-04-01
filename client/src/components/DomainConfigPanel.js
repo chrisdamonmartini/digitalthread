@@ -131,62 +131,46 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
   // Filter items when availableItems or topNodeOnly changes
   useEffect(() => {
     if (topNodeOnly) {
-      // Identify top-level nodes by checking if they have no parent
-      // First, collect all child IDs from all items
+      // Identify top-level nodes by checking if they are present in any childId array
       const childIds = new Set();
       
-      // Check each possible property name based on domain type
-      const childIdProps = [
-        `child${domainName}Ids`,        // Exact match (e.g., childMissionIds)
-        `child${domainName.toLowerCase()}Ids`,  // Lowercase (e.g., childmissionIds)
-        'childIds'                      // Generic fallback
-      ];
+      // Construct the EXACT child ID property name
+      const childIdKey = `child${domainName}Ids`;
+      console.log(`DEBUG: Using child ID key: '${childIdKey}' to find top-level nodes`);
       
-      // Debug log to check for Fault Detection function
-      console.log("Checking for Fault Detection function in items:");
-      const faultFn = availableItems.find(item => 
-        item.title && item.title.includes("Fault Detection")
-      );
-      if (faultFn) {
-        console.log("Found Fault Detection function:", faultFn);
-        // Check which childIds property it has
-        childIdProps.forEach(prop => {
-          if (faultFn[prop]) {
-            console.log(`Function has ${prop}:`, faultFn[prop]);
-          }
-        });
-      } else {
-        console.log("No Fault Detection function found in available items");
-      }
-      
-      // Collect all child IDs from all items using all possible property names
+      // Collect all child IDs using the specific key
       availableItems.forEach(item => {
-        for (const prop of childIdProps) {
-          if (item[prop] && Array.isArray(item[prop])) {
-            item[prop].forEach(id => childIds.add(id));
-          }
+        if (item[childIdKey] && Array.isArray(item[childIdKey])) {
+          item[childIdKey].forEach(id => childIds.add(id));
         }
       });
       
-      // Debug log for child IDs
-      console.log(`Collected ${childIds.size} child IDs`);
+      // Debug log for child IDs collected
+      console.log(`DEBUG: Collected ${childIds.size} child IDs:`, Array.from(childIds).slice(0, 20)); // Log first 20
       
-      // Filter out items that are found in any childIds array
-      const topLevelItems = availableItems.filter(item => !childIds.has(item.id));
-      
-      // Check if the Fault function made it through filtering
-      if (faultFn) {
-        const isFaultInTopLevel = topLevelItems.some(item => item.id === faultFn.id);
-        console.log(`Is Fault Detection function in top level items? ${isFaultInTopLevel}`);
-        if (!isFaultInTopLevel) {
-          console.log(`Fault Detection function (${faultFn.id}) was excluded because it's a child of another item`);
+      // Filter out items whose IDs are in the childIds set
+      const topLevelItems = availableItems.filter(item => {
+        const isChild = childIds.has(item.id);
+        if (isChild) {
+          // Log items being filtered out because they are children
+          // console.log(`DEBUG: Filtering out item ${item.id} (${item.title}) because it is a child.`);
         }
+        return !isChild;
+      });
+      
+      console.log(`DEBUG: Filtered from ${availableItems.length} to ${topLevelItems.length} top-level items.`);
+      
+      // Log the first few identified top-level items for verification
+      if (topLevelItems.length > 0) {
+          console.log(`DEBUG: Identified top-level items (first 5):`, topLevelItems.slice(0, 5).map(i => ({id: i.id, title: i.title})));
+      } else if (availableItems.length > 0) {
+          console.warn(`DEBUG: No top-level items identified. Check if items have the correct '${childIdKey}' property or if all items are children.`);
       }
       
-      console.log(`Filtered from ${availableItems.length} to ${topLevelItems.length} top-level items using parent-child relationship check`);
       setFilteredItems(topLevelItems);
     } else {
       // Show all items
+      console.log("DEBUG: Showing all available items (Top Node Only filter disabled).");
       setFilteredItems(availableItems);
     }
   }, [availableItems, topNodeOnly, domainName]);

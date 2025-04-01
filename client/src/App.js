@@ -1237,6 +1237,27 @@ function FlowView() {
         const childIdSet = childIdSets[domainName];
         if (!itemMap) return; 
 
+        const parentNodeId = `domain-${domainName.replace(/\s+/g, '-')}`;
+
+        // --- Define layout constants first ---
+        const filterBoxHeight = 48;
+        const filterBoxPadding = 8;
+        const spaceBelowFilter = 10;
+        const searchIconSize = 16;
+        const filterBoxWidth = nodeWidth * 0.85;
+        const filterBoxY = parentPadding + parentTitleHeight + 30;
+
+        // Function to create non-draggable node properties (needs to be defined early)
+        const createNonDraggableNode = (node) => ({
+          ...node,
+          draggable: false,
+          selectable: false,
+          style: {
+            ...node.style,
+            pointerEvents: node.id.startsWith('settings-icon-') ? 'all' : 'none'
+          }
+        });
+
         // --- Calculate required height for children recursively --- 
         let totalContentHeight = 0;
         
@@ -1315,13 +1336,141 @@ function FlowView() {
             });
         }
 
-        // --- 4. Add Settings Icon --- 
+        // --- Calculate Parent Height (now that content height is known) ---
+        const parentHeight = parentPadding + parentTitleHeight + spaceBelowTitle + 
+                             filterBoxHeight + spaceBelowFilter + 
+                             totalContentHeight + parentPadding;
+        const parentX = currentColumnX;
+        const parentY = 0; 
+
+        // Get domain-specific configuration
+        const domainSpecificConfig = domainConfig[domainName] || {};
+        const domainColor = domainColors[domainName] || domainSpecificConfig.color || '#14364F';
+
+        // Check if this domain has a stored position and use it
+        const storedPosition = domainPositions[parentNodeId];
+        const usePosition = storedPosition ? storedPosition : { x: parentX, y: parentY };
+        
+        if (storedPosition) {
+          console.log(`Using stored position for ${parentNodeId}: ${JSON.stringify(storedPosition)}`);
+        }
+
+        // --- 1. Add Parent Node --- 
+        newNodes.push({
+          id: parentNodeId,
+          type: 'default',
+          position: usePosition,
+          data: { domainName: domainName },
+          draggable: true,
+          selectable: false,
+          style: { 
+              width: columnWidth, 
+              height: parentHeight, 
+              backgroundColor: 'white',
+              border: `1px solid ${domainColor}`,
+              borderRadius: '4px',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+              cursor: 'default'
+          }
+        });
+
+        // --- 2. Add Drag Indicator ---
+        newNodes.push({
+          id: `dragbar-${parentNodeId}`,
+          type: 'default',
+          parentNode: parentNodeId,
+          draggable: false,
+          selectable: false,
+          position: { x: 0, y: 0 },
+          data: { label: '' },
+          style: {
+            width: columnWidth,
+            height: 20, 
+            backgroundColor: 'transparent',
+            cursor: 'grab',
+            fontSize: '9px',
+            color: '#666',
+            textAlign: 'center',
+            pointerEvents: 'none',
+            backgroundImage: `
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px),
+              radial-gradient(circle, #666 2px, transparent 2px)
+            `,
+            backgroundSize: '10px 10px',
+            backgroundPosition: 'center 4px, center 12px, calc(50% - 15px) 4px, calc(50% - 15px) 12px, calc(50% + 15px) 4px, calc(50% + 15px) 12px',
+            backgroundRepeat: 'no-repeat',
+            border: 'none',
+            outline: 'none',
+            boxShadow: 'none',
+            borderRadius: '0'
+          }
+        });
+
+        // --- 3. Add Domain Icon (if enabled) ---
+        if (showDomainIcons) {
+          if (domainSpecificConfig.icon) {
+            newNodes.push(createNonDraggableNode({
+              id: `icon-${parentNodeId}`,
+              parentNode: parentNodeId,
+              position: { x: parentPadding, y: parentPadding + 4 },
+              data: { label: null },
+              style: {
+                width: 40,
+                height: 40,
+                backgroundImage: `url(${domainSpecificConfig.icon})`,
+                backgroundSize: 'contain',
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center',
+                backgroundColor: 'transparent',
+                border: 'none',
+                outline: 'none',
+                boxShadow: 'none',
+                filter: 'drop-shadow(0 0 0 transparent)',
+                cursor: 'default',
+                zIndex: 1
+              }
+            }));
+          }
+        }
+
+        // --- 4. Add Title Node ---
+        const titleX = showDomainIcons ? parentPadding + 45 : parentPadding;
+        const titleWidth = showDomainIcons ? nodeWidth - 45 : nodeWidth;
+        
+        newNodes.push({
+          id: `title-${parentNodeId}`,
+          parentNode: parentNodeId, 
+          draggable: false,
+          selectable: false,
+          position: { x: titleX, y: parentPadding },
+          data: { label: domainName },
+          style: { 
+              width: titleWidth,
+              fontFamily: "'Segoe UI', sans-serif",
+              fontWeight: 'bold',
+              fontSize: '1.2em', 
+              color: '#333',
+              textAlign: 'left',
+              paddingBottom: '5px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              outline: 'none',
+              cursor: 'default',
+              zIndex: 3, 
+              pointerEvents: 'none'
+          }
+        });
+
+        // --- 5. Add Settings Icon --- 
         newNodes.push(createNonDraggableNode({
             id: `settings-icon-${parentNodeId}`,
             parentNode: parentNodeId,
             position: { x: columnWidth - parentPadding - 24 - 4, y: parentPadding + 4 },
-            data: { domainName: domainName, // Pass domain name for click handler
-                  label: null },
+            data: { domainName: domainName, label: null },
             style: {
               width: 24,
               height: 24,
@@ -1334,12 +1483,12 @@ function FlowView() {
               outline: 'none',
               boxShadow: 'none',
               cursor: 'pointer',
-              zIndex: 4, // Ensure it's above other elements
-              pointerEvents: 'all' // Ensure it can be clicked
+              zIndex: 4, 
+              pointerEvents: 'all'
             }
           }));
         
-        // --- 5. Filter Box (using FilterNode) ---
+        // --- 6. Filter Box (using FilterNode) ---
         const filterNodeId = `filter-${parentNodeId}`;
         newNodes.push({
           id: filterNodeId,
@@ -1348,13 +1497,13 @@ function FlowView() {
           draggable: false,
           selectable: false,
           position: { 
-            x: parentPadding + (nodeWidth * 0.075), // Centered within the 85% width
+            x: parentPadding + (nodeWidth * 0.075),
             y: filterBoxY 
           },
           data: { 
             placeholder: `Filter ${domainName}...`, 
             updateFilter: updateDomainFilter,
-            domainId: parentNodeId, // Pass the parent node ID for context
+            domainId: parentNodeId,
             currentFilter: domainFilters[parentNodeId] || ''
           },
           style: { 
@@ -1367,7 +1516,7 @@ function FlowView() {
         const startYOffsetForItems = parentPadding + parentTitleHeight + spaceBelowTitle + 
                                       filterBoxHeight + spaceBelowFilter;
 
-        // --- Recursive function to add nodes --- 
+        // --- Recursive function to add item nodes --- 
         const processNodeAndChildren = (itemId, parentNodeId, currentX, startY, depth) => {
             const item = itemMap.get(itemId);
             if (!item) return { yOffset: 0 }; // Should not happen if data is consistent
@@ -1377,10 +1526,9 @@ function FlowView() {
             const itemText = `${item.id} ${item.title || ''} ${item.description || ''}`.toLowerCase();
             const itemMatchesFilter = !filterText || itemText.includes(filterText);
             
-            // Base height for the item itself
+            // Base height calculation
             let calculatedNodeHeight = baseItemHeight;
             if (nodeDisplayMode === 'full') {
-                // Add extra height for details
                 if ((domainName === 'Parameter' && (item.unit || item.valueType)) || 
                     (domainName === 'Functions' && item.functionType)) {
                     calculatedNodeHeight += detailLineHeight;
@@ -1391,10 +1539,13 @@ function FlowView() {
                 }
             }
 
-            // Only add node if it matches filter
-            const hasChildren = nodeHasChildren(domainName, itemId);
+            // Get children info *before* checking hasChildren
+            const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
+            const childIds = item[childIdKey] || []; // **Define childIds here**
+            const hasChildren = childIds.length > 0;
             const isExpanded = expandedNodes.has(itemId);
 
+            // Only add node if it matches filter
             if (itemMatchesFilter) {
                 newNodes.push({
                     id: item.id,

@@ -1020,8 +1020,8 @@ function FlowView() {
     }
 
     // Extract domain names from parent nodes
-    const fromDomain = sourceParent.data?.label;
-    const toDomain = targetParent.data?.label;
+    const fromDomain = sourceParent.data?.domainName;
+    const toDomain = targetParent.data?.domainName;
 
     console.log("Domain information:", { fromDomain, toDomain });
 

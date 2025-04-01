@@ -1782,14 +1782,16 @@ function FlowView() {
     missions, scenarios, requirements, parameters, functions,
     localDomainOrder, appConfig, nodeDisplayMode, showRelationshipLines, showDomainIcons,
     isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
-    domainFilters, // Add domainFilters as a dependency
+    domainFilters, 
     setNodes, setEdges,
     domainDisplayConfig,
-    isLoadingDisplayConfig, // Add loading state as dependency
-    domainColors, // Add domainColors as a dependency
-    domainPositions, // Add domainPositions as a dependency to preserve positions
+    isLoadingDisplayConfig, 
+    domainColors, 
+    domainPositions, 
     lineType,
-    arrowheadType
+    arrowheadType,
+    expandedNodes, // Add dependency on expansion state
+    toggleNodeExpansion // Add dependency on the toggle function
   ]);
 
   // Define a function to handle when a node is dragged

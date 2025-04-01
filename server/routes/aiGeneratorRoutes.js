@@ -651,6 +651,8 @@ function generatePreviewItems(domain, count, depth, programType) {
   previewItems.push(parentItem);
   
   // Generate children items based on the count
+  const parentChildMap = {}; // Track children for each parent
+
   for (let i = 0; i < count; i++) {
     // Select a random template for the child
     const childTemplateIndex = Math.floor(Math.random() * templates.length);
@@ -679,10 +681,13 @@ function generatePreviewItems(domain, count, depth, programType) {
     
     previewItems.push(childItem);
     
+    // Add child ID to parent map
+    if (!parentChildMap[parentId]) parentChildMap[parentId] = [];
+    parentChildMap[parentId].push(childId);
+
     // Generate grandchildren if depth > 1
     if (depth > 1) {
-      const grandchildrenPerChild = Math.max(2, Math.floor(Math.random() * 4)); // 2-3 grandchildren per child
-      
+      const grandchildrenPerChild = Math.max(2, Math.floor(Math.random() * 4)); 
       for (let j = 0; j < grandchildrenPerChild; j++) {
         // Select a random template for the grandchild
         const grandchildTemplateIndex = Math.floor(Math.random() * templates.length);
@@ -710,11 +715,14 @@ function generatePreviewItems(domain, count, depth, programType) {
         }
         
         previewItems.push(grandchildItem);
+
+        // Add grandchild ID to parent (childItem) map
+        if (!parentChildMap[childId]) parentChildMap[childId] = [];
+        parentChildMap[childId].push(grandchildId);
         
         // Generate great-grandchildren if depth > 2
         if (depth > 2) {
-          const greatGrandchildrenPerGrandchild = 2; // 2 great-grandchildren per grandchild
-          
+          const greatGrandchildrenPerGrandchild = 2; 
           for (let k = 0; k < greatGrandchildrenPerGrandchild; k++) {
             // Select a random template for the great-grandchild
             const greatGrandchildTemplateIndex = Math.floor(Math.random() * templates.length);
@@ -742,12 +750,27 @@ function generatePreviewItems(domain, count, depth, programType) {
             }
             
             previewItems.push(greatGrandchildItem);
+
+            // Add great-grandchild ID to parent (grandchildItem) map
+            if (!parentChildMap[grandchildId]) parentChildMap[grandchildId] = [];
+            parentChildMap[grandchildId].push(greatGrandchildId);
           }
         }
       }
     }
   }
   
+  // Now, add the child ID arrays to the items in previewItems
+  const childIdKey = `child${domain.replace(/\s+/g, '')}Ids`;
+  previewItems.forEach(item => {
+    if (parentChildMap[item.id]) {
+      item[childIdKey] = parentChildMap[item.id];
+    } else {
+      // Ensure the key exists even if empty for consistency
+      item[childIdKey] = []; 
+    }
+  });
+
   return previewItems;
 }
 
@@ -770,18 +793,25 @@ async function saveApprovedItems(session, domain, items, connectToNext) {
       // Map the preview ID to the new database ID
       idMap[item.id] = itemId;
       
-      // Update the item with a real ID and creation timestamp
-      const dbItem = {
-        ...item,
-        id: itemId,
-        createdAt: new Date().toISOString()
-      };
-      
-      // Remove preview-specific properties
+      // Create the final item for the database, preserving child array
+      const dbItem = { ...item }; // Start by copying the approved item
+      dbItem.id = itemId; // Set the new database ID
+      dbItem.createdAt = new Date().toISOString();
+
+      // Remove preview-specific properties *but keep child array*
       delete dbItem.parentId;
       delete dbItem.isParent;
       delete dbItem.level;
       
+      // Ensure child array exists if not provided (e.g., for leaf nodes)
+      const childIdKeyForSave = `child${domain.replace(/\s+/g, '')}Ids`;
+      if (!dbItem.hasOwnProperty(childIdKeyForSave)) {
+          dbItem[childIdKeyForSave] = [];
+      } else {
+        // Ensure it's an array (if it exists)
+        dbItem[childIdKeyForSave] = Array.isArray(dbItem[childIdKeyForSave]) ? dbItem[childIdKeyForSave] : [];
+      }
+
       // Create the node in Neo4j
       await tx.run(
         `CREATE (n:${domain} $item) RETURN n`,
@@ -791,72 +821,35 @@ async function saveApprovedItems(session, domain, items, connectToNext) {
       itemsCreated++;
     }
     
-    // Create parent-child relationships and update parent items with childIds
-    const parentChildMap = {};
-    
-    // First, collect all children for each parent
+    // Create parent-child relationships using Neo4j RELATIONSHIPS (HAS_CHILD)
+    // This part remains useful for graph queries, even though frontend uses the array property
+    const parentChildPairs = [];
     for (const item of items) {
-      // Skip items without parent references
-      if (!item.parentId) continue;
-      
-      // Get the new IDs for parent and child
-      const newChildId = idMap[item.id];
-      const newParentId = idMap[item.parentId];
-      
-      // Only process if both parent and child exist in approved items
-      if (newChildId && newParentId) {
-        // Initialize parent's children array if needed
-        if (!parentChildMap[newParentId]) {
-          parentChildMap[newParentId] = [];
-        }
-        
-        // Add child to parent's array
-        parentChildMap[newParentId].push(newChildId);
+      if (item.parentId && idMap[item.id] && idMap[item.parentId]) {
+        parentChildPairs.push({ childId: idMap[item.id], parentId: idMap[item.parentId] });
       }
     }
-    
-    // Now create relationships and update parent items with childIds
-    for (const [parentId, childIds] of Object.entries(parentChildMap)) {
-      // Determine the childIds property name based on domain
-      const childIdsProperty = `child${domain}Ids`;
-      
-      // Create HAS_CHILD relationships for each child
-      for (const childId of childIds) {
+
+    if (parentChildPairs.length > 0) {
         await tx.run(
-          `
-          MATCH (parent:${domain} {id: $parentId})
-          MATCH (child:${domain} {id: $childId})
-          CREATE (parent)-[:HAS_CHILD]->(child)
-          `,
-          { parentId, childId }
+            `UNWIND $pairs as pair
+             MATCH (parent:${domain} {id: pair.parentId}), (child:${domain} {id: pair.childId})
+             MERGE (parent)-[:HAS_CHILD]->(child)`, 
+            { pairs: parentChildPairs }
         );
-        
-        connectionsCreated++;
-      }
-      
-      // Update parent item with childIds array
-      await tx.run(
-        `
-        MATCH (parent:${domain} {id: $parentId})
-        SET parent.${childIdsProperty} = $childIds
-        `,
-        { parentId, childIds }
-      );
     }
-    
-    // If connectToNext is true, create connections to the next domain
-    if (connectToNext) {
-      // Implementation for connecting to next domain - unchanged
-    }
-    
-    // Commit the transaction
+
+    // Optional: Connect to next domain if specified
+    // (Add logic here if needed based on connectToNext flag)
+
     await tx.commit();
-    
+    console.log(`Successfully created ${itemsCreated} items and relationships for domain ${domain}`);
     return { itemsCreated, connectionsCreated };
+
   } catch (error) {
-    // Rollback the transaction in case of error
+    console.error(`Error saving items for domain ${domain}:`, error);
     await tx.rollback();
-    throw error;
+    throw error; // Re-throw the error to be caught by the route handler
   }
 }
 

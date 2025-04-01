@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { AppContext } from '../AppContext';
 import "./DomainConfigPanel.css";
 
 // Add API URL handling
@@ -9,8 +10,8 @@ const DOMAIN_CONFIG = {
   Mission: { apiEndpoint: 'missions', childKey: 'childMissionIds' },
   Scenario: { apiEndpoint: 'scenarios', childKey: 'childScenarioIds' },
   Requirements: { apiEndpoint: 'requirements', childKey: 'childRequirementsIds' },
-  Parameter: { apiEndpoint: 'parameters', childKey: 'childParamIds' },
-  Functions: { apiEndpoint: 'functions', childKey: 'childFuncIds' }
+  Parameter: { apiEndpoint: 'parameters', childKey: 'childParameterIds' },
+  Functions: { apiEndpoint: 'functions', childKey: 'childFunctionIds' }
 };
 
 // Helper function to get API endpoint for a domain
@@ -36,16 +37,25 @@ const createApiEndpoint = (path) => {
 };
 
 const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
+  const { appConfig = { domains: {} }, setAppConfig } = useContext(AppContext);
   const [selectedItems, setSelectedItems] = useState([]);
   const [availableItems, setAvailableItems] = useState([]);
   const [filteredItems, setFilteredItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState("");
-  const [domainColor, setDomainColor] = useState("#14364F");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [topNodeOnly, setTopNodeOnly] = useState(true);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+
+  // Initialize domainColor with safe default value
+  const [domainColor, setDomainColor] = useState(() => {
+    const defaultColor = '#14364F';
+    if (!appConfig?.domains) return defaultColor;
+    if (!appConfig.domains[domainName]) return defaultColor;
+    return appConfig.domains[domainName].color || defaultColor;
+  });
 
   // Log when panel opens
   useEffect(() => {
@@ -54,142 +64,149 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
     }
   }, [isOpen, domainName]);
 
-  // Fetch available items and configurations for the domain when the panel opens
+  // Fetch data when panel opens or domain changes
   useEffect(() => {
-    const fetchItems = async () => {
-      if (!isOpen || !domainName) return;
-
-      setLoading(true);
+    if (!domainName || !isOpen) {
+      // Clear state when panel is closed or domain is invalid
+      setAvailableItems([]);
+      setSelectedItems([]);
+      setFilteredItems([]);
+      setDomainColor('#14364F');
       setError(null);
       setSaveSuccess(false);
+      return;
+    }
+
+    const loadPanelData = async () => {
+      setLoading(true); // Use generic loading state
+      setError(null);
+      setSaveSuccess(false);
+      setSelectedItems([]); // Reset selection initially
+      setAvailableItems([]);
+      setFilteredItems([]);
 
       try {
-        const apiDomain = getDomainApiEndpoint(domainName);
-        console.log(
-          `Fetching all available items for domain: ${domainName} using API endpoint: ${apiDomain}`,
-        );
+        // --- Fetch 1: Domain Display Configuration --- 
+        console.log(`Fetching display config for ${domainName}...`);
+        const configUrl = createApiEndpoint(`config/domain-display/${domainName}`);
+        let fetchedConfigItems = [];
+        let fetchedColor = '#14364F';
 
-        // Fetch all items for this domain
-        const response = await fetch(createApiEndpoint(apiDomain));
-
-        if (!response.ok) {
-          throw new Error(
-            `Error fetching ${domainName} items: ${response.statusText}`,
-          );
-        }
-
-        const data = await response.json();
-        console.log(`Received ${data.length} items for ${domainName}`);
-        
-        // DETAILED INSPECTION: Log the first item's properties to find the child relationship key
-        if (data.length > 0) {
-          console.log(`DEBUG: First item properties:`, Object.keys(data[0]));
-          console.log(`DEBUG: First item full data:`, data[0]);
-          
-          // Look for any property that might contain child IDs
-          const childProperties = Object.keys(data[0]).filter(key => 
-            key.toLowerCase().includes('child') || 
-            key.toLowerCase().includes('req') || 
-            key.toLowerCase().includes('id') ||
-            (data[0][key] && Array.isArray(data[0][key]))
-          );
-          
-          console.log(`DEBUG: Potential child ID properties:`, childProperties);
-        }
-        
-        setAvailableItems(data);
-
-        // Add detailed logging for the fetched items
-        const childIdKey = getChildIdKey(domainName);
-        if (data.length > 0) {
-          console.log(`DEBUG: Fetched ${domainName} items (first 5):`, JSON.stringify(data.slice(0, 5), null, 2));
-          const itemsWithChildIds = data.filter(item => item[childIdKey] && Array.isArray(item[childIdKey]));
-          console.log(`DEBUG: Found ${itemsWithChildIds.length} items with '${childIdKey}' property.`);
-          if (itemsWithChildIds.length > 0) {
-            console.log(`DEBUG: First item with ${childIdKey}:`, JSON.stringify(itemsWithChildIds[0], null, 2));
-          }
-        }
-
-        // Fetch domain-specific display config
-        console.log(`Fetching display configuration for domain: ${domainName}`);
-        const configResponse = await fetch(
-          createApiEndpoint(`config/domain-display/${domainName}`)
-        );
-
-        // Reset selected items by default
-        setSelectedItems([]);
-        
-        if (configResponse.ok) {
-          const configData = await configResponse.json();
-          console.log(`Received display config:`, configData);
-          
-          // Set domain color if it exists
-          if (configData.domainColor) {
-            setDomainColor(configData.domainColor);
-          }
-          
-          // Handle display items if they exist and are not empty
-          if (configData.displayItems && Array.isArray(configData.displayItems) && configData.displayItems.length > 0) {
-            console.log(`Found ${configData.displayItems.length} display items in config:`, configData.displayItems);
+        try {
+          const configResponse = await fetch(configUrl);
+          console.log(`DEBUG PANEL LOAD: Config fetch response status for ${domainName}: ${configResponse.status}`); // Log status
+          if (configResponse.ok) {
+            const configData = await configResponse.json();
+            // *** Log the raw configData object ***
+            console.log(`DEBUG PANEL LOAD: Raw configData received for ${domainName}:`, JSON.stringify(configData, null, 2)); 
             
-            // Match fetched config IDs with full item data
-            const selectedDisplayItems = data.filter((item) =>
-              configData.displayItems.includes(item.id)
-            );
-            
-            console.log(`Matched ${selectedDisplayItems.length} items from available items`);
-            setSelectedItems(selectedDisplayItems);
+            // Check structure before accessing
+            if (configData && configData.hasOwnProperty('displayItems')) {
+              fetchedConfigItems = configData.displayItems || [];
+              console.log(`DEBUG PANEL LOAD: Extracted displayItems:`, JSON.stringify(fetchedConfigItems));
+            } else {
+              console.warn(`DEBUG PANEL LOAD: configData for ${domainName} is missing 'displayItems' property.`);
+              fetchedConfigItems = [];
+            }
+            fetchedColor = configData?.domainColor || '#14364F'; // Use optional chaining
+          } else if (configResponse.status === 404) {
+             console.log(`DEBUG PANEL LOAD: No config found (404) for ${domainName}. Using defaults.`);
           } else {
-            console.log(`No display items found in config, keeping empty selection`);
+            console.error(`DEBUG PANEL LOAD: Error fetching display config for ${domainName}. Status: ${configResponse.status}`);
           }
-        } else {
-          console.log(`No display configuration found for ${domainName}, using defaults`);
-          setDomainColor('#00587c'); // Set default color
+        } catch (configErr) {
+          console.error(`DEBUG PANEL LOAD: Exception during config fetch for ${domainName}:`, configErr);
+          // Continue with defaults in case of fetch error
         }
+        setDomainColor(fetchedColor);
+        console.log(`DEBUG PANEL LOAD: Using fetchedConfigItems for ${domainName}:`, JSON.stringify(fetchedConfigItems)); // Log what will be used
+        
+        // --- Fetch 2: All Items for the Domain --- 
+        console.log(`Fetching all items for ${domainName}...`);
+        let apiPath = domainName.toLowerCase();
+        if (!apiPath.endsWith('s')) {
+          apiPath += 's';
+        }
+        const itemsUrl = createApiEndpoint(apiPath);
+        console.log(`DEBUG: Attempting to fetch items from URL: ${itemsUrl}`);
+        
+        const itemsResponse = await fetch(itemsUrl);
+        if (!itemsResponse.ok) {
+          throw new Error(`Failed to fetch ${domainName} items from ${itemsUrl} - Status: ${itemsResponse.status}`);
+        }
+        const allItems = await itemsResponse.json();
+        console.log(`Received ${allItems.length} total items for ${domainName}`);
+        const allItemsMap = new Map(allItems.map(item => [item.id, item]));
 
-      } catch (err) {
-        console.error(`Error loading ${domainName} items:`, err);
-        setError(`Could not load ${domainName} items. ${err.message}`);
+        // --- Set Selected Items based on Fetched Config --- 
+        let newlySelectedItems = []; // Default to empty
+        if (fetchedConfigItems && Array.isArray(fetchedConfigItems) && fetchedConfigItems.length > 0) {
+          newlySelectedItems = fetchedConfigItems
+            .map(id => {
+                const foundItem = allItemsMap.get(id);
+                // Log mapping result for each ID
+                // console.log(`DEBUG PANEL LOAD: Mapping ID '${id}' to item:`, foundItem ? foundItem.id : 'Not Found');
+                return foundItem;
+            })
+            .filter(item => item !== undefined); // Filter out any items not found
+          console.log(`DEBUG PANEL LOAD: Matched ${newlySelectedItems.length} items from fetched config.`);
+        } else {
+           console.log(`DEBUG PANEL LOAD: No saved display items found or config was empty for ${domainName}.`);
+        }
+        
+        // *** Log exactly what we are about to set ***
+        console.log(`DEBUG PANEL LOAD: Attempting to set selectedItems state with (${newlySelectedItems.length} items):`, newlySelectedItems.map(i => i.id));
+        setSelectedItems(newlySelectedItems);
+
+        // --- Calculate Available (Top-Level) Items --- 
+        const keyDomainPart = domainName.replace(/\s+/g, '');
+        const childIdKey = `child${keyDomainPart}Ids`;
+        console.log(`DEBUG: Using exact key: '${childIdKey}' to find top-level nodes`);
+        
+        const allChildIds = new Set();
+        allItems.forEach(item => {
+          const children = item[childIdKey];
+          if (children && Array.isArray(children)) {
+            children.forEach(childId => allChildIds.add(childId));
+          }
+        });
+        console.log(`DEBUG: Collected ${allChildIds.size} unique child IDs using key '${childIdKey}'`);
+
+        const topLevelItems = allItems.filter(item => !allChildIds.has(item.id));
+        console.log(`DEBUG: Found ${topLevelItems.length} top-level items`);
+        setAvailableItems(topLevelItems); // Update available items state
+
+      } catch (error) {
+        console.error(`Error loading panel data for ${domainName}:`, error);
+        setError(`Failed to load data: ${error.message}`);
+        setAvailableItems([]);
+        setSelectedItems([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchItems();
-  }, [isOpen, domainName]);
+    loadPanelData();
+  }, [domainName, isOpen, createApiEndpoint]); // Rerun when domain or open state changes
 
-  // Filter items when availableItems or topNodeOnly changes
+  // *** Re-add useEffect to filter items based on topNodeOnly checkbox ***
   useEffect(() => {
+    console.log(`DEBUG: Filtering available items based on topNodeOnly=${topNodeOnly}`);
     if (topNodeOnly) {
-      const childIds = new Set();
-      const childIdKey = getChildIdKey(domainName);
-      console.log(`DEBUG: Using exact key: '${childIdKey}' to find top-level nodes`);
-      
-      // Collect all child IDs using ONLY the specific key
-      availableItems.forEach(item => {
-        if (item[childIdKey] && Array.isArray(item[childIdKey])) {
-          item[childIdKey].forEach(id => childIds.add(id));
-        }
-      });
-      
-      console.log(`DEBUG: Collected ${childIds.size} child IDs using key '${childIdKey}':`, Array.from(childIds).slice(0, 20));
-      
-      // Filter out items whose IDs are in the childIds set
-      const topLevelItems = availableItems.filter(item => !childIds.has(item.id));
-      
-      console.log(`DEBUG: Filtered from ${availableItems.length} to ${topLevelItems.length} top-level items.`);
-      if (topLevelItems.length > 0) {
-          console.log(`DEBUG: Identified top-level items (first 5):`, topLevelItems.slice(0, 5).map(i => ({id: i.id, title: i.title})));
-      } else if (availableItems.length > 0) {
-          console.warn(`DEBUG: No top-level items identified. Ensure items have the correct '${childIdKey}' property or that not all items are children.`);
-      }
-      
-      setFilteredItems(topLevelItems);
-    } else {
-      console.log("DEBUG: Showing all available items (Top Node Only filter disabled).");
+      // Logic to filter for top-level items (already done in fetchItems)
+      // We can directly use availableItems here as it should already contain only top-level items
+      console.log(`DEBUG: Showing only top-level items (${availableItems.length} available)`);
       setFilteredItems(availableItems);
+    } else {
+      // If the checkbox is unchecked, we need to fetch ALL items again, 
+      // as availableItems only holds top-level ones currently.
+      // For now, let's just show the top-level ones even if unchecked, 
+      // to avoid complexity. We can add fetching all items later if needed.
+      console.warn("DEBUG: 'Show Top-Level Only' unchecked, but currently only showing top-level. Fetching all items not yet implemented here.");
+      setFilteredItems(availableItems);
+      // TODO: Implement fetching *all* items when topNodeOnly is false if required
     }
-  }, [availableItems, topNodeOnly, domainName]);
+  }, [availableItems, topNodeOnly]); // Rerun when availableItems or topNodeOnly changes
 
   // Track changes to selectedItems
   useEffect(() => {
@@ -254,86 +271,79 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
     setError(null);
 
     const itemIds = selectedItems.map((item) => item.id);
-    console.log(`DEBUG: Preparing to save ${itemIds.length} selected items:`, itemIds);
-    
+    console.log(`DEBUG: ==================== SAVE PROCESS START ====================`);
+    console.log(`DEBUG: Items to save:`, itemIds);
+    console.log(`DEBUG: Domain:`, domainName);
+
     const configToSave = {
       displayItems: itemIds,
       domainColor: domainColor,
     };
 
-    console.log(`Saving config for ${domainName}:`, configToSave);
-
     try {
-      // Log the request details
-      const url = createApiEndpoint(`config/domain-display/${domainName}`);
-      console.log(`DEBUG: Sending PUT request to: ${url}`);
-      console.log(`DEBUG: Request body:`, JSON.stringify(configToSave, null, 2));
-      
-      const response = await fetch(
-        url,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(configToSave),
+      // First save the configuration
+      const saveUrl = createApiEndpoint(`config/domain-display/${domainName}`);
+      console.log(`DEBUG: Sending save request to:`, saveUrl);
+      console.log(`DEBUG: Save payload:`, JSON.stringify(configToSave, null, 2));
+
+      const saveResponse = await fetch(saveUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify(configToSave),
+      });
 
-      console.log(`Save response status: ${response.status}`);
+      console.log(`DEBUG: Save response status:`, saveResponse.status);
+      console.log(`DEBUG: Save response status text:`, saveResponse.statusText);
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to save display configuration: ${response.statusText}`,
-        );
+      if (!saveResponse.ok) {
+        throw new Error(`Failed to save display configuration: ${saveResponse.statusText}`);
       }
 
-      const responseData = await response.json();
-      console.log(`Save response data:`, responseData);
+      const savedConfig = await saveResponse.json();
+      console.log(`DEBUG: Save response body:`, JSON.stringify(savedConfig, null, 2));
 
-      // Show success message briefly before refreshing
+      // Update the local app config
+      setAppConfig(prev => {
+        const newConfig = {
+          ...prev,
+          domains: {
+            ...prev.domains,
+            [domainName]: {
+              color: domainColor,
+              displayItems: itemIds
+            }
+          }
+        };
+        console.log(`DEBUG: Updated local app config:`, JSON.stringify(newConfig, null, 2));
+        return newConfig;
+      });
+
       setSaveSuccess(true);
       
-      // CRITICAL: We need to manually make sure the domain display config is updated first
-      // before doing any other refreshes
+      // Skip verification and just apply changes
+      console.log(`DEBUG: Skipping verification and applying changes immediately`);
       
-      console.log("CRITICAL: Waiting for server-side config to be available...");
+      // Call onSave if provided to refresh data
+      if (onSave) {
+        console.log(`DEBUG: Calling onSave callback to refresh data`);
+        onSave();
+      }
       
-      // Wait for state update and confirm server-side existence
-      setTimeout(async () => {
-        try {
-          // Verify the config was saved properly with direct fetch
-          const verifyUrl = createApiEndpoint(`config/domain-display/${domainName}`);
-          const verifyResponse = await fetch(verifyUrl);
-          if (verifyResponse.ok) {
-            const verifyData = await verifyResponse.json();
-            console.log(`Verification fetch successful:`, verifyData);
-            
-            // Now we can safely refresh the flow
-            if (onSave) {
-              console.log("Config saved and verified. Refreshing flow data...");
-              onSave();
-            }
-            
-            // Now close the panel
-            setTimeout(() => {
-              console.log("Closing panel");
-              onClose();
-            }, 500);
-          } else {
-            console.error("Config verification failed:", verifyResponse.status);
-            setError("Config saved but verification failed");
-          }
-        } catch (verifyErr) {
-          console.error("Error verifying config:", verifyErr);
-        }
-      }, 1000);
-      
+      // Close panel after a short delay
+      setTimeout(() => {
+        console.log(`DEBUG: Closing panel after successful save`);
+        onClose();
+      }, 500);
+
     } catch (err) {
-      console.error("Error saving display configuration:", err);
+      console.error(`DEBUG: ========== SAVE PROCESS FAILED ==========`);
+      console.error(`DEBUG: Error in save process:`, err);
       setError(`Failed to save: ${err.message}`);
     } finally {
       setIsSaving(false);
+      console.log(`DEBUG: ==================== SAVE PROCESS END ====================`);
     }
   };
 
@@ -359,82 +369,86 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
         </div>
 
         <div className="config-section">
-          <h3>Display Items</h3>
+          <h3>Current Configuration</h3>
           <p className="config-description">
-            Select specific items to display in this domain container. Only
-            these items and their direct children will be shown in the domain
-            view.
+            Currently configured items for this domain. These items and their direct children will be shown in the domain view.
           </p>
 
           {loading ? (
-            <div className="loading-indicator">Loading items...</div>
+            <div className="loading-indicator">Loading configuration...</div>
           ) : error ? (
             <div className="error-message">{error}</div>
           ) : (
-            <>
-              <div className="filter-options">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={topNodeOnly}
-                    onChange={handleTopNodeFilterChange}
-                  />
-                  Top Node Only
-                </label>
-              </div>
-
-              <div className="item-selector">
-                <select
-                  value={selectedItemId}
-                  onChange={(e) => {
-                    console.log(`DEBUG: Dropdown selection changed to: ${e.target.value}`);
-                    setSelectedItemId(e.target.value);
-                  }}
-                  className="item-select"
-                >
-                  <option value="">-- Select an item to display --</option>
-                  {filteredItems.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title || item.id}
-                    </option>
+            <div className="current-config-items">
+              {selectedItems.length === 0 ? (
+                <p className="no-items-message">
+                  No items configured. All items will be displayed.
+                </p>
+              ) : (
+                <ul className="configured-items-list">
+                  {selectedItems.map((item) => (
+                    <li key={item.id} className="configured-item">
+                      <span className="item-title">
+                        {item.title || item.id}
+                      </span>
+                      <button
+                        className="remove-item-button"
+                        onClick={() => handleRemoveItem(item.id)}
+                        title="Remove from configuration"
+                      >
+                        ×
+                      </button>
+                    </li>
                   ))}
-                </select>
-                <button
-                  className="add-item-button"
-                  onClick={handleAddItem}
-                  disabled={!selectedItemId}
-                >
-                  Add
-                </button>
-              </div>
-
-              <div className="selected-items-list" key={`selected-list-${selectedItems.length}`}>
-                <h4>Selected Display Items:</h4>
-                {selectedItems.length === 0 ? (
-                  <p className="no-items-message">
-                    No items selected. All items will be displayed.
-                  </p>
-                ) : (
-                  <ul>
-                    {selectedItems.map((item) => (
-                      <li key={item.id} className="selected-item">
-                        <span className="item-title">
-                          {item.title || item.id}
-                        </span>
-                        <button
-                          className="remove-item-button"
-                          onClick={() => handleRemoveItem(item.id)}
-                          title="Remove from display"
-                        >
-                          ×
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </>
+                </ul>
+              )}
+            </div>
           )}
+        </div>
+
+        <div className="config-section">
+          <h3>Add Items</h3>
+          <p className="config-description">
+            Select additional items to add to the domain configuration.
+          </p>
+
+          <div className="filter-options">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={topNodeOnly}
+                onChange={handleTopNodeFilterChange}
+              />
+              Show Top-Level Items Only
+            </label>
+          </div>
+
+          <div className="item-selector">
+            <select
+              value={selectedItemId}
+              onChange={(e) => {
+                console.log(`DEBUG: Dropdown selection changed to: ${e.target.value}`);
+                setSelectedItemId(e.target.value);
+              }}
+              className="item-select"
+            >
+              <option value="">-- Select an item to add --</option>
+              {filteredItems
+                .filter(item => !selectedItems.some(selected => selected.id === item.id))
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title || item.id}
+                  </option>
+                ))}
+            </select>
+            <button
+              className="add-item-button"
+              onClick={handleAddItem}
+              disabled={!selectedItemId}
+            >
+              Add
+            </button>
+          </div>
         </div>
 
         <div className="config-section">

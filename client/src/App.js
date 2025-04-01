@@ -468,13 +468,8 @@ const RelationshipLegend = () => {
 // Main content for the React Flow view
 function FlowView() { 
   // --- State needed ONLY for the Flow View --- 
-  const { appConfig, setAppConfig } = useContext(AppContext);
-  
-  // Add a state to force updates when needed
-  const [forceUpdate, setForceUpdate] = useState(0);
-  
-  // Add a reference to the last fetched display config
-  const lastFetchedDisplayConfig = useRef({});
+  const { appConfig, setAppConfig } = useContext(AppContext); // Use appConfig from context
+  const [forceUpdate, setForceUpdate] = useState(0); // <<< RE-ADD forceUpdate state
   
   // React Flow State
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -491,83 +486,50 @@ function FlowView() {
   const [functions, setFunctions] = useState([]);
   const [isLoadingFunctions, setIsLoadingFunctions] = useState(true);
   
-  // Re-add config state needed for layout
-  const [localDomainOrder, setLocalDomainOrder] = useState([]); 
+  // Config state needed for layout (domainOrder comes from appConfig now)
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const localDomainOrder = useMemo(() => appConfig?.domainOrder || [], [appConfig]); // Get domainOrder from context
   
   const [linkingState, setLinkingState] = useState({ fromId: null, fromDomain: null });
   const [error, setError] = useState(null); 
   const [successMessage, setSuccessMessage] = useState(null);
-  // Add appInitialized state here early in the component
   const [appInitialized, setAppInitialized] = useState(false);
-  const [nodeDisplayMode, setNodeDisplayMode] = useState('idAndTitle'); // 'full', 'idAndTitle', 'titleOnly'
-  // Add state for relationship lines toggle with localStorage support
+  const [nodeDisplayMode, setNodeDisplayMode] = useState('idAndTitle'); 
   const [showRelationshipLines, setShowRelationshipLines] = useState(() => {
     const saved = localStorage.getItem('showRelationshipLines');
-    return saved !== null ? JSON.parse(saved) : true; // Default to showing lines
+    return saved !== null ? JSON.parse(saved) : true; 
   });
-
-  // Add state for domain icons toggle
   const [showDomainIcons, setShowDomainIcons] = useState(true);
-  // Add state for curved vs straight edges with localStorage support
   const [useCurvedEdges, setUseCurvedEdges] = useState(() => {
     const saved = localStorage.getItem('useCurvedEdges');
-    return saved !== null ? JSON.parse(saved) : false; // Default to straight lines
+    return saved !== null ? JSON.parse(saved) : false; 
   });
-
-  // Save useCurvedEdges preference to localStorage
-  useEffect(() => {
-    localStorage.setItem('useCurvedEdges', JSON.stringify(useCurvedEdges));
-  }, [useCurvedEdges]);
-
-  // Add state for line type with localStorage support
   const [lineType, setLineType] = useState(() => {
     const saved = localStorage.getItem('lineType');
-    return saved !== null ? saved : 'straight'; // Options: straight, smoothstep, bezier, step
+    return saved !== null ? saved : 'straight'; 
   });
-
-  // Save lineType preference to localStorage
-  useEffect(() => {
-    localStorage.setItem('lineType', lineType);
-  }, [lineType]);
-
-  // Add state for arrowhead type with localStorage support
   const [arrowheadType, setArrowheadType] = useState(() => {
     const saved = localStorage.getItem('arrowheadType');
-    return saved !== null ? saved : 'ArrowClosed'; // Options: ArrowClosed, Arrow, ArrowOpen
+    return saved !== null ? saved : 'ArrowClosed'; 
   });
-
-  // Save arrowheadType preference to localStorage
-  useEffect(() => {
-    localStorage.setItem('arrowheadType', arrowheadType);
-  }, [arrowheadType]);
-
-  // Add state for filter text for each domain
   const [domainFilters, setDomainFilters] = useState({});
-  const [domainPositions, setDomainPositions] = useState({}); // Store domain positions
-  
-  // Memoized callback for updating filters
+  const [domainPositions, setDomainPositions] = useState({}); 
   const updateDomainFilter = useCallback((domainId, filterText) => {
     setDomainFilters(prev => ({
       ...prev,
       [domainId]: filterText
     }));
   }, [setDomainFilters]);
-
-  // Memoized callback for storing domain positions
   const storeDomainPosition = useCallback((nodeId, position) => {
     setDomainPositions(prev => ({
       ...prev,
       [nodeId]: position
     }));
   }, [setDomainPositions]);
-
   const nodeTypes = useMemo(() => ({
     custom: CustomNode,
     filter: FilterNode, // Register the FilterNode component
   }), []);
-  
-  // Add edge types
   const edgeTypes = useMemo(() => ({
     custom: CustomEdge,
     straight: CustomStraightEdge,
@@ -618,33 +580,17 @@ function FlowView() {
       return <CustomEdge {...props} edgePath={edgePath} />;
     }
   }), []);
-
-  const [activeDomainConfig, setActiveDomainConfig] = useState(null); // Track which domain is being configured
-  const [retryCount, setRetryCount] = useState(0); // Add retry count state
-
-  // Add domainDisplayConfig state to store display configuration
-  const [domainDisplayConfig, setDomainDisplayConfig] = useState({});
-  const [domainColors, setDomainColors] = useState({}); // Store domain colors
-  const [isLoadingDisplayConfig, setIsLoadingDisplayConfig] = useState(true);
-
-  // Add new state for connection handling
+  const [activeDomainConfig, setActiveDomainConfig] = useState(null); 
+  const [retryCount, setRetryCount] = useState(0); 
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionSource, setConnectionSource] = useState(null);
   const [connectionSuccess, setConnectionSuccess] = useState(false);
-
-  // Add refresh tracking refs
   const refreshAttempts = React.useRef(0);
   const lastRefreshTime = React.useRef(0);
   const connectionCompleted = React.useRef(false);
-
-  // State for managing configuration
   const [config, setConfig] = useState(null);
   const [allowOnlyAdjacentConnections, setAllowOnlyAdjacentConnections] = useState(true);
-
-  // State to track expanded nodes in the tree view
   const [expandedNodes, setExpandedNodes] = useState(new Set());
-
-  // Function to toggle node expansion
   const toggleNodeExpansion = useCallback((nodeId) => {
     setExpandedNodes(prevExpanded => {
       const newExpanded = new Set(prevExpanded);
@@ -656,16 +602,11 @@ function FlowView() {
       return newExpanded;
     });
   }, [setExpandedNodes]);
+  const updateLocalRelationshipRef = useRef((fromDomain, fromId, toId) => {
+    console.warn("updateLocalRelationshipRef called before initialization");
+  });
 
-  // Forward-declare updateLocalRelationship to avoid reference error
-  const updateLocalRelationshipTemp = (fromDomain, fromId, toId) => {
-    console.log("Updating local relationship", { fromDomain, fromId, toId });
-    // Implementation will be overridden later
-  };
-  // Use ref to avoid dependency cycle issues
-  const updateLocalRelationshipRef = useRef(updateLocalRelationshipTemp);
-
-  // --- useEffect for successMessage (Keep for linking feedback) --- 
+  // --- useEffect for successMessage --- 
   useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => setSuccessMessage(null), 3000);
@@ -678,108 +619,22 @@ function FlowView() {
     try {
     setIsLoadingConfig(true);
     setError(null);
-      
       const result = await fetchWithErrorHandling(createApiEndpoint('config'));
-      setConfig(result);
-      setAppConfig(result);
-      setLocalDomainOrder(result.domainOrder || []);
-      
-      // Set the local state based on config
+      setConfig(result); // Keep setting local config if needed elsewhere
+      setAppConfig(result); // Update context
       if (result && result.allowOnlyAdjacentConnections !== undefined) {
         setAllowOnlyAdjacentConnections(result.allowOnlyAdjacentConnections);
       }
-      
       setIsLoadingConfig(false);
       return result;
     } catch (e) {
       console.error("Error fetching config:", e);
       setIsLoadingConfig(false);
       setError(`Failed to fetch configuration: ${e.message}`);
-      setAppConfig({});
-      setLocalDomainOrder([]);
+      setAppConfig({}); // Reset context on error
       throw e;
     }
-  }, [fetchWithErrorHandling, setError, setAppConfig, setLocalDomainOrder]);
-
-  // Function to fetch domain display configurations
-  const fetchDomainDisplayConfigs = useCallback(async () => {
-    if (localDomainOrder.length === 0) {
-      console.log("No domains to fetch configs for");
-      setIsLoadingDisplayConfig(false);
-      return;
-    }
-    
-    console.log("Fetching domain display configs...");
-    setIsLoadingDisplayConfig(true);
-    setError(null);
-    
-    const displayConfigMap = {};
-    const colorMap = {};
-    
-    try {
-      // Fetch each domain's display configuration sequentially
-      for (const domainName of localDomainOrder) {
-        try {
-          const url = createApiEndpoint(`config/domain-display/${domainName}`);
-          console.log(`Fetching config for ${domainName} from ${url}`);
-          
-          const response = await fetch(url);
-          if (!response.ok && response.status !== 404) {
-            console.warn(`Error fetching config for ${domainName}: ${response.status}`);
-            displayConfigMap[domainName] = [];
-            colorMap[domainName] = '#14364F';
-            continue;
-          }
-          
-          // Handle 404 (no config yet) with defaults
-          if (response.status === 404) {
-            console.log(`No config found for ${domainName} (404)`);
-            displayConfigMap[domainName] = [];
-            colorMap[domainName] = '#14364F';
-            continue;
-          }
-          
-          const data = await response.json();
-          console.log(`Received config for ${domainName}:`, data);
-          
-          // Extract display items (handle different formats)
-          let displayItems = [];
-          if (data.displayItems) {
-            if (Array.isArray(data.displayItems)) {
-              // If objects with id property, extract ids
-              if (data.displayItems.length > 0 && typeof data.displayItems[0] === 'object') {
-                displayItems = data.displayItems.map(item => item.id);
-              } else {
-                displayItems = data.displayItems;
-              }
-            }
-          }
-          
-          displayConfigMap[domainName] = displayItems;
-          colorMap[domainName] = data.domainColor || '#14364F';
-          
-          console.log(`Processed config for ${domainName}: ${displayItems.length} items`);
-        } catch (err) {
-          console.error(`Error processing ${domainName} config:`, err);
-          displayConfigMap[domainName] = [];
-          colorMap[domainName] = '#14364F';
-        }
-      }
-      
-      console.log("Final config map:", displayConfigMap);
-      console.log("Final color map:", colorMap);
-      
-      // Update state with the new configs
-      setDomainDisplayConfig(displayConfigMap);
-      setDomainColors(colorMap);
-      
-    } catch (err) {
-      console.error('Error fetching domain display configurations:', err);
-      setError('Failed to load domain display configurations');
-    } finally {
-      setIsLoadingDisplayConfig(false);
-    }
-  }, [localDomainOrder, createApiEndpoint]);
+  }, [fetchWithErrorHandling, setError, setAppConfig]); // Removed setLocalDomainOrder dep
 
   const fetchMissions = useCallback(async () => {
     setIsLoadingMissions(true);
@@ -851,7 +706,7 @@ function FlowView() {
     }
   }, []);
 
-  // --- Retry function for all connections ---
+  // --- Retry function --- 
   const retryAllConnections = useCallback(() => {
     setError(null); // Clear existing errors
     console.log('Retrying all API connections...');
@@ -879,26 +734,19 @@ function FlowView() {
       // Error will be set by the individual fetch functions
     });
   }, [
-    fetchConfig, 
-    fetchMissions, 
-    fetchScenarios, 
-    fetchRequirements, 
-    fetchParameters, 
-    fetchFunctions,
-    setSuccessMessage,
-    setError,
-    setRetryCount,
-    setAppInitialized
+    fetchConfig, fetchMissions, fetchScenarios, fetchRequirements, 
+    fetchParameters, fetchFunctions, setSuccessMessage, setError, 
+    setRetryCount, setAppInitialized
   ]);
 
-  // When a domain config panel is closed, refresh the configurations
+  // --- Panel close handler --- 
+  // Remove the fetchDomainDisplayConfigs call
   const closeDomainConfigPanel = useCallback(() => {
     setActiveDomainConfig(null);
-    // Refresh configs when panel is closed to ensure UI reflects any changes
-    fetchDomainDisplayConfigs();
-  }, [setActiveDomainConfig, fetchDomainDisplayConfigs]);
+    // No need to fetch configs here anymore
+  }, [setActiveDomainConfig]);
 
-  // Initialize app function
+  // --- Initialize App --- 
   const initializeApp = useCallback(() => {
     return Promise.all([
       fetchConfig(),
@@ -910,7 +758,6 @@ function FlowView() {
     ]);
   }, [fetchConfig, fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]);
 
-  // Separate useEffects for each data loading step
   // 1. Initial data load
   useEffect(() => {
     console.log("Starting initial data fetch");
@@ -921,31 +768,21 @@ function FlowView() {
     });
   }, [initializeApp]);
 
-  // 2. Check when domain order is loaded and fetch configs
-  useEffect(() => {
-    if (localDomainOrder.length > 0) {
-      console.log("Domain order loaded:", localDomainOrder);
-      fetchDomainDisplayConfigs();
-    }
-  }, [localDomainOrder, fetchDomainDisplayConfigs]);
-
-  // 3. Mark app as initialized when all data is ready
+  // 3. Mark app as initialized (already updated)
   useEffect(() => {
     if (!appInitialized && 
         !isLoadingConfig && !isLoadingMissions && !isLoadingScenarios && 
-        !isLoadingRequirements && !isLoadingParameters && !isLoadingFunctions &&
-        !isLoadingDisplayConfig) {
+        !isLoadingRequirements && !isLoadingParameters && !isLoadingFunctions) {
       console.log("All data loaded, marking app as initialized");
       setAppInitialized(true);
       console.log("Digital Thread data loaded successfully!");
     }
   }, [
     appInitialized, isLoadingConfig, isLoadingMissions, isLoadingScenarios, 
-    isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
-    isLoadingDisplayConfig
+    isLoadingRequirements, isLoadingParameters, isLoadingFunctions
   ]);
   
-  // Auto-retry logic for initialization
+  // Auto-retry logic (remains same)
   useEffect(() => {
     const MAX_RETRIES = 2;
     
@@ -968,7 +805,7 @@ function FlowView() {
     }
   }, [appInitialized, retryCount, initializeApp]);
   
-  // --- Relationship Logic (Keep for linking interaction) --- 
+  // --- Relationship Logic --- 
   const startLinking = useCallback((fromId, fromDomain) => {
       setLinkingState({ fromId, fromDomain });
       setSuccessMessage(null); // Clear previous success message
@@ -1161,57 +998,38 @@ function FlowView() {
   
   // --- useEffect to Calculate Nodes and Edges --- 
   useEffect(() => {
-    // Check if data is still loading
+    // *** Log appConfig.domains at the start of the effect run ***
+    console.log("== Node Calculation useEffect RUNNING ==");
+    console.log("AppConfig domains value at effect start:", 
+      appConfig ? JSON.stringify(appConfig.domains, null, 2) : "appConfig is null/undefined"
+    );
+    
+    // Check if data is still loading (already updated)
     if (isLoadingConfig || isLoadingMissions || isLoadingScenarios || 
         isLoadingRequirements || isLoadingParameters || isLoadingFunctions || 
-        isLoadingDisplayConfig || !appConfig) {
+        !appConfig) {
       console.log("Waiting for data to calculate hierarchical layout...");
-      console.log("Loading states:", {
-        config: isLoadingConfig,
-        missions: isLoadingMissions,
-        scenarios: isLoadingScenarios,
-        requirements: isLoadingRequirements,
-        parameters: isLoadingParameters,
-        functions: isLoadingFunctions,
-        displayConfig: isLoadingDisplayConfig
-      });
+      // ... (loading checks)
       setNodes([]);
       setEdges([]);
       return;
     }
 
-    console.log(`Calculating ${showRelationshipLines ? 'nodes and edges' : 'nodes only'} with Parent Containers and Space...`);
+    console.log(`Calculating ${showRelationshipLines ? 'nodes and edges' : 'nodes only'}...`);
     
-    // Log the entire domainDisplayConfig for debugging
-    console.log("Domain Display Config used for calculation:", JSON.stringify(domainDisplayConfig));
-    console.log("Requirements display config:", domainDisplayConfig['Requirements']);
-    console.log("Domain Colors:", JSON.stringify(domainColors));
-    console.log("Available domains:", localDomainOrder);
-
-    // *** START DEBUG LOGGING FOR REQUIREMENTS ***
-    if (requirements && requirements.length > 0) {
-      console.log("DEBUG: First 3 Requirement items:", requirements.slice(0, 3));
-      const expectedChildKey = `child${'Requirements'.replace(/\s+/g, '')}Ids`;
-      console.log(`DEBUG: Expecting child key: '${expectedChildKey}'`);
-      // Check if any requirement actually has the expected key
-      const sampleWithKey = requirements.find(r => r.hasOwnProperty(expectedChildKey));
-      console.log(`DEBUG: Sample item HAS '${expectedChildKey}' key?`, !!sampleWithKey);
-    } else {
-      console.log("DEBUG: No requirements data found.");
-    }
-    // *** END DEBUG LOGGING FOR REQUIREMENTS ***
+    // Log the appConfig domains section for debugging display configs
+    // console.log("AppConfig Domains used for calculation:", JSON.stringify(appConfig.domains)); // Can remove if redundant
+    // ... (rest of the effect)
 
     const newNodes = [];
     const newEdges = [];
-    
-    // Domain-specific configurations including icons and colors
-    const domainConfig = {
+    const domainConfigIcons = {
       'Mission': { icon: missionIcon, color: '#14364F' },
       'Scenario': { icon: scenarioIcon, color: '#14364F' },
       'Requirements': { icon: requirementsIcon, color: '#14364F' },
       'Parameter': { icon: parameterIcon, color: '#14364F' },
       'Functions': { icon: functionsIcon, color: '#14364F' }
-    };
+    }; // Rename to avoid clash
     
     // Layout parameters
     const columnStartX = 50;    
@@ -1277,49 +1095,61 @@ function FlowView() {
         if (!itemMap) return; 
 
         const parentNodeId = `domain-${domainName.replace(/\s+/g, '-')}`;
-
-        // --- Define layout constants first ---
+        
+        // --- Define layout constants needed within this loop scope ---        
         const filterBoxHeight = 48;
         const filterBoxPadding = 8;
         const spaceBelowFilter = 10;
         const searchIconSize = 16;
-        const filterBoxWidth = nodeWidth * 0.85;
-        const filterBoxY = parentPadding + parentTitleHeight + 30;
+        const filterBoxWidth = nodeWidth * 0.85; // Depends on nodeWidth defined outside loop
+        const filterBoxY = parentPadding + parentTitleHeight + 30; // Depends on constants defined outside loop
+        let totalContentHeight = 0; // Initialize here
 
-        // --- Calculate required height for children recursively --- 
-        let totalContentHeight = 0;
-        
-        // Filter top-level items based on domain display configuration
+        // --- Filter top-level items --- 
         let topLevelItems = Array.from(itemMap.values()).filter(item => !childIdSet?.has(item.id));
+        console.log(`[${parentNodeId}] Found ${topLevelItems.length} top-level items initially.`);
         
-        // Add debug logging
-        console.log(`Domain ${domainName}: Found ${topLevelItems.length} top-level items before filtering`);
+        // *** Apply filtering AND get color DIRECTLY using appConfig ***
+        const domainSettings = appConfig.domains ? appConfig.domains[domainName] : undefined;
+        const displayItemIds = domainSettings?.displayItems || []; // Default to empty array
+        const domainColor = domainSettings?.color || '#14364F'; // Default color
         
-        // Apply domain display configuration filtering if available
-        const displayItemIds = domainDisplayConfig[domainName];
-        console.log(`Domain ${domainName} display config:`, displayItemIds);
+        // *** DETAILED FILTERING LOG (using appConfig) ***
+        console.log(`[${parentNodeId}] Using display config from AppContext:`, JSON.stringify(displayItemIds));
+        const shouldFilter = Array.isArray(displayItemIds) && displayItemIds.length > 0;
+        console.log(`[${parentNodeId}] Should apply filtering (from AppContext)? ${shouldFilter}`);
         
-        if (displayItemIds && Array.isArray(displayItemIds) && displayItemIds.length > 0) {
-          // Only show items that are in the display configuration
-          console.log(`Filtering ${domainName} to only show items:`, displayItemIds);
-          console.log(`BEFORE filtering: ${topLevelItems.length} items`);
+        if (shouldFilter) {
+          // *** Simplified Logging Inside Filter Block ***
+          console.log(`>>> [${parentNodeId}] ENTERING shouldFilter block. Items count before: ${topLevelItems.length}`);
           
-          // Check if any of the display items exist in top-level items
-          const matchingIds = topLevelItems.filter(item => displayItemIds.includes(item.id)).map(item => item.id);
-          console.log(`Items matching filter criteria: ${matchingIds.length}`, matchingIds);
-          
-          topLevelItems = topLevelItems.filter(item => displayItemIds.includes(item.id));
-          console.log(`AFTER filtering: ${topLevelItems.length} items`);
-          
-          if (topLevelItems.length === 0) {
-            console.warn(`No top-level items matched the display filter for ${domainName}. Check the item IDs in the configuration.`);
+          const itemsBeforeIds = topLevelItems.map(i => i.id); // Get IDs before filtering
+          console.log(`>>> [${parentNodeId}] BEFORE Filter IDs: ${JSON.stringify(itemsBeforeIds)}`);
+
+          try {
+            // Apply the filter
+            topLevelItems = topLevelItems.filter(item => displayItemIds.includes(item.id));
+            
+            const itemsAfterIds = topLevelItems.map(i => i.id); // Get IDs after filtering
+            console.log(`>>> [${parentNodeId}] AFTER Filter IDs: ${JSON.stringify(itemsAfterIds)}`);
+            console.log(`>>> [${parentNodeId}] EXITING shouldFilter block successfully. Items count after: ${topLevelItems.length}`);
+
+          } catch (filterError) {
+            console.error(`>>> [${parentNodeId}] ERROR during .filter() operation:`, filterError);
+            // Keep original topLevelItems if filter fails?
           }
+
+          // Remove the old detailed logging block
+          /*
+          const itemsBeforeFilter = topLevelItems.map(i => i.id);
+          // ... old logs ...
+          */
+          
         } else {
-          console.log(`${domainName}: No display filtering applied, showing all ${topLevelItems.length} items`);
+          console.log(`[${parentNodeId}] No display filtering applied (from AppContext), showing all ${topLevelItems.length} items.`);
         }
         
-        
-        // Define calculateBranchHeight here so it can access nodeDisplayMode and other constants
+        // --- Define height calculation function --- 
         const calculateBranchHeight = (itemId) => {
             const item = itemMap.get(itemId);
             if (!item) return 0;
@@ -1337,13 +1167,13 @@ function FlowView() {
                     calculatedNodeHeight += lines * descriptionLineHeight;
                 }
             }
-
+            
             // Check if this node is expanded
             const isExpanded = expandedNodes.has(itemId);
             const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
             const childIds = item[childIdKey] || [];
             let childrenHeight = 0;
-
+            
             // Only calculate children height if the node is expanded and has children
             if (isExpanded && childIds.length > 0) {
                 childIds.forEach((childId, index) => {
@@ -1359,8 +1189,8 @@ function FlowView() {
             return calculatedNodeHeight + childrenHeight;
         };
         
-        // Recalculate totalContentHeight based on expanded nodes
-        totalContentHeight = 0; // Reset before recalculating
+        // --- Calculate totalContentHeight --- 
+        totalContentHeight = 0; 
         if (topLevelItems.length > 0) {
             topLevelItems.forEach((topItem, index) => {
                 totalContentHeight += calculateBranchHeight(topItem.id);
@@ -1369,25 +1199,22 @@ function FlowView() {
                 }
             });
         }
-
-        // --- Calculate Parent Height (now that content height is known) ---
+        
+        // --- Calculate Parent Height --- 
         const parentHeight = parentPadding + parentTitleHeight + spaceBelowTitle + 
-                             filterBoxHeight + spaceBelowFilter + 
+                             filterBoxHeight + spaceBelowFilter + // Use constants defined above
                              totalContentHeight + parentPadding;
         const parentX = currentColumnX;
         const parentY = 0; 
 
-        // Get domain-specific configuration
-        const domainSpecificConfig = domainConfig[domainName] || {};
-        const domainColor = domainColors[domainName] || domainSpecificConfig.color || '#14364F';
+        // Get domain-specific icon configuration
+        const domainIconConfig = domainConfigIcons[domainName] || {}; 
+        // Use domainColor derived above
 
-        // Check if this domain has a stored position and use it
+        // Check for stored position
         const storedPosition = domainPositions[parentNodeId];
         const usePosition = storedPosition ? storedPosition : { x: parentX, y: parentY };
-        
-        if (storedPosition) {
-          console.log(`Using stored position for ${parentNodeId}: ${JSON.stringify(storedPosition)}`);
-        }
+        if (storedPosition) { /* ... logging ... */ }
 
         // --- 1. Add Parent Node --- 
         newNodes.push({
@@ -1395,13 +1222,13 @@ function FlowView() {
           type: 'default',
           position: usePosition,
           data: { domainName: domainName },
-          draggable: true,
+          draggable: true, 
           selectable: false,
           style: { 
               width: columnWidth, 
-              height: parentHeight, 
+              height: parentHeight, // Use calculated parentHeight
               backgroundColor: 'white',
-              border: `1px solid ${domainColor}`,
+              border: `1px solid ${domainColor}`, // Use derived color
               borderRadius: '4px',
               boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
               cursor: 'default'
@@ -1409,12 +1236,12 @@ function FlowView() {
         });
 
         // --- 2. Add Drag Indicator ---
-        newNodes.push({
+            newNodes.push({
           id: `dragbar-${parentNodeId}`,
           type: 'default',
-          parentNode: parentNodeId,
-          draggable: false,
-          selectable: false,
+              parentNode: parentNodeId,
+              draggable: false,
+              selectable: false,
           position: { x: 0, y: 0 },
           data: { label: '' },
           style: {
@@ -1444,9 +1271,9 @@ function FlowView() {
           }
         });
 
-        // --- 3. Add Domain Icon (if enabled) ---
+        // --- 3. Add Domain Icon --- 
         if (showDomainIcons) {
-          if (domainSpecificConfig.icon) {
+          if (domainIconConfig.icon) { // Use renamed variable
             newNodes.push(createNonDraggableNode({
               id: `icon-${parentNodeId}`,
               parentNode: parentNodeId,
@@ -1455,7 +1282,7 @@ function FlowView() {
               style: {
                 width: 40,
                 height: 40,
-                backgroundImage: `url(${domainSpecificConfig.icon})`,
+                backgroundImage: `url(${domainIconConfig.icon})`,
                 backgroundSize: 'contain',
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: 'center',
@@ -1501,28 +1328,28 @@ function FlowView() {
 
         // --- 5. Add Settings Icon --- 
         newNodes.push(createNonDraggableNode({
-            id: `settings-icon-${parentNodeId}`,
-            parentNode: parentNodeId,
+          id: `settings-icon-${parentNodeId}`,
+          parentNode: parentNodeId,
             position: { x: columnWidth - parentPadding - 24 - 4, y: parentPadding + 4 },
             data: { domainName: domainName, label: null },
-            style: {
-              width: 24,
-              height: 24,
-              backgroundImage: `url(${settingsIcon})`,
-              backgroundSize: 'contain',
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'center',
-              backgroundColor: 'transparent',
+          style: {
+            width: 24,
+            height: 24,
+            backgroundImage: `url(${settingsIcon})`,
+            backgroundSize: 'contain',
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'center',
+            backgroundColor: 'transparent',
               border: 'none',
-              outline: 'none',
+            outline: 'none',
               boxShadow: 'none',
-              cursor: 'pointer',
+            cursor: 'pointer',
               zIndex: 4, 
               pointerEvents: 'all'
             }
           }));
         
-        // --- 6. Filter Box (using FilterNode) ---
+        // --- 6. Filter Box --- 
         const filterNodeId = `filter-${parentNodeId}`;
         newNodes.push({
           id: filterNodeId,
@@ -1532,7 +1359,7 @@ function FlowView() {
           selectable: false,
           position: { 
             x: parentPadding + (nodeWidth * 0.075),
-            y: filterBoxY 
+            y: filterBoxY // Use filterBoxY defined above
           },
           data: { 
             placeholder: `Filter ${domainName}...`, 
@@ -1540,21 +1367,21 @@ function FlowView() {
             domainId: parentNodeId,
             currentFilter: domainFilters[parentNodeId] || ''
           },
-          style: { 
-            width: filterBoxWidth, 
-            height: filterBoxHeight
+          style: {
+            width: filterBoxWidth, // Use filterBoxWidth defined above
+            height: filterBoxHeight // Use filterBoxHeight defined above
           }
         });
 
         // Adjust start Y offset for actual items based on elements above
         const startYOffsetForItems = parentPadding + parentTitleHeight + spaceBelowTitle + 
-                                      filterBoxHeight + spaceBelowFilter;
+                                      filterBoxHeight + spaceBelowFilter; // Use constants defined above
 
         // --- Recursive function to add item nodes --- 
         const processNodeAndChildren = (itemId, parentNodeId, currentX, startY, depth) => {
-            const item = itemMap.get(itemId);
+            const item = itemMap.get(itemId); 
             if (!item) return { yOffset: 0 };
-            
+
             // Apply filter text
             const filterText = (domainFilters[parentNodeId] || '').toLowerCase();
             const itemText = `${item.id} ${item.title || ''} ${item.description || ''}`.toLowerCase();
@@ -1809,21 +1636,23 @@ function FlowView() {
     console.log(`Calculated ${newNodes.length} nodes.`);
     console.log(`Calculated ${newEdges.length} edges (Inter-domain only).`);
     setNodes(newNodes);
+    if (showRelationshipLines) {
     setEdges(newEdges);
+    }
 
-  }, [ // Dependencies 
-    localDomainOrder, missions, scenarios, requirements, parameters, functions, 
-    allowOnlyAdjacentConnections, nodeDisplayMode, useCurvedEdges, showRelationshipLines, lineType, arrowheadType,
-    domainPositions, expandedNodes, appConfig, 
-    isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
-    domainFilters, 
-    setNodes, setEdges,
-    domainDisplayConfig,
-    isLoadingDisplayConfig, 
-    forceUpdate // Add forceUpdate to the dependency array
-  ]);
+    console.log("Node/Edge calculation complete using AppContext for filtering.");
+  }, [ // Dependencies (already updated)
+    missions, scenarios, requirements, parameters, functions,
+    appConfig, 
+    nodeDisplayMode, domainFilters, domainPositions, 
+    showRelationshipLines, showDomainIcons, useCurvedEdges, 
+    lineType, arrowheadType, expandedNodes, 
+    isLoadingConfig, isLoadingMissions, isLoadingScenarios, 
+    isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
+    forceUpdate // <<< RE-ADD forceUpdate dependency
+  ]); // End of main useEffect dependencies
 
-  // Define a function to handle when a node is dragged
+  // --- Connection Line Logic & Other Handlers --- 
   const onNodeDrag = useCallback((event, node) => {
     // Only apply the logic to domain parent nodes
     if (!node.id.startsWith('domain-')) return;
@@ -1917,7 +1746,6 @@ function FlowView() {
     
   }, [nodes]);
   
-  // Handle when node drag ends
   const onNodeDragStop = useCallback((event, node) => {
     if (node.id.startsWith('domain-')) {
       // Store the final position of the domain
@@ -1925,7 +1753,6 @@ function FlowView() {
     }
   }, [storeDomainPosition]);
 
-  // Function to handle mouse move for connection preview
   const handleMouseMove = useCallback((event) => {
     if (isConnecting && connectionSource) {
       // Get mouse position relative to the ReactFlow canvas
@@ -1973,7 +1800,6 @@ function FlowView() {
     }
   }, [isConnecting, connectionSource, nodes, setEdges, useCurvedEdges]);
 
-  // Function to check if two domains can be connected
   const canConnect = useCallback((sourceDomain, targetDomain) => {
     const validConnections = {
       'Mission': ['Scenario'],
@@ -1991,7 +1817,6 @@ function FlowView() {
     return false;
   }, []);
 
-  // Function to start connection mode
   const handleStartConnecting = useCallback(() => {
     setIsConnecting(true);
     setConnectionSource(null);
@@ -2000,7 +1825,6 @@ function FlowView() {
     console.log('Connection mode started');
   }, [setError]);
 
-  // Function to cancel connection mode
   const handleCancelConnecting = useCallback(() => {
     setIsConnecting(false);
     setConnectionSource(null);
@@ -2009,7 +1833,6 @@ function FlowView() {
     console.log('Connection mode canceled');
   }, [setError]);
 
-  // Function to handle node hover during connection
   const handleNodeMouseEnter = useCallback((event, node) => {
     // If we're not in connecting mode, do nothing
     if (!isConnecting) return;
@@ -2040,7 +1863,6 @@ function FlowView() {
     setNodes(updatedNodes);
   }, [isConnecting, nodes, setNodes]);
 
-  // Function to handle node hover exit
   const handleNodeMouseLeave = useCallback((event, node) => {
     // If we're not in connecting mode, do nothing
     if (!isConnecting) return;
@@ -2062,7 +1884,6 @@ function FlowView() {
     setNodes(updatedNodes);
   }, [isConnecting, nodes, setNodes]);
 
-  // Function to handle node clicks during connection
   const handleNodeClick = useCallback((event, node) => {
     // If settings icon is clicked, open configuration panel
     if (node.id.startsWith('settings-icon-')) {
@@ -2150,7 +1971,6 @@ function FlowView() {
     }
   }, [isConnecting, connectionSource, setConnectionSource, completeLink, nodes, setActiveDomainConfig, setError]);
 
-  // Effect to cleanup after a connection is completed
   useEffect(() => {
     if (connectionSuccess) {
       // Force a recalculation of the edges when a connection is successfully created
@@ -2184,7 +2004,6 @@ function FlowView() {
     }
   }, [connectionSuccess, showRelationshipLines, nodes, setNodes]);
 
-  // Effect to cleanup after a connection is completed
   useEffect(() => {
     if (connectionSuccess) {
       // Clear the connection success status after a delay
@@ -2196,7 +2015,6 @@ function FlowView() {
     }
   }, [connectionSuccess]);
 
-  // Effect to clean up temporary edges when connection state changes
   useEffect(() => {
     if (!isConnecting) {
       // Remove any temporary connection edge when not in connecting mode
@@ -2204,7 +2022,6 @@ function FlowView() {
     }
   }, [isConnecting, setEdges]);
 
-  // Add a function to delete a relationship
   const handleDeleteRelationship = useCallback(async (edgeId) => {
     try {
       // Parse the edge ID to get details
@@ -2325,7 +2142,6 @@ function FlowView() {
     setSuccessMessage
   ]);
 
-  // Make handleDeleteRelationship available globally
   useEffect(() => {
     window.handleDeleteRelationship = handleDeleteRelationship;
     // Cleanup when component unmounts
@@ -2334,14 +2150,12 @@ function FlowView() {
     };
   }, [handleDeleteRelationship]);
 
-  // Enhanced edge context menu handling
   const onEdgeContextMenu = (event, edge) => {
     // This function is no longer needed as we handle context menu in the CustomEdge component
     // The CustomEdge component now handles all right-click interactions directly
     event.preventDefault();
   };
 
-  // Function to update app configuration
   const updateConfig = useCallback(async (newConfig) => {
     try {
       const response = await fetchWithErrorHandling(createApiEndpoint('config'), {
@@ -2359,7 +2173,6 @@ function FlowView() {
     }
   }, [fetchWithErrorHandling, setError]);
 
-  // Handle toggling adjacent connections setting
   const handleSetAllowOnlyAdjacentConnections = useCallback(async (value) => {
     if (!config) return;
     
@@ -2384,7 +2197,6 @@ function FlowView() {
     }
   }, [config, updateConfig, setSuccessMessage]);
 
-  // Update the updateLocalRelationship implementation
   useEffect(() => {
     // Function to update local data structures after creating a relationship
     updateLocalRelationshipRef.current = (fromDomain, fromId, toId) => {
@@ -2470,51 +2282,33 @@ function FlowView() {
     fetchFunctions
   ]);
 
-  // Define a function to refetch all necessary flow data
+  // --- Refresh Function --- 
+  // Modify refreshFlowData to use setTimeout for forceUpdate
   const refreshFlowData = useCallback(() => {
-    console.log("Refreshing flow data after config change...");
+    console.log("Refreshing flow data after config save...");
     
-    // Simple sequential approach - first refresh configs, then data
-    console.log("Refreshing domain display configurations...");
-    fetchDomainDisplayConfigs();
-    
-    // Then refresh domain items
-    console.log("Refreshing domain items...");
+    // Initiate fetch calls
     fetchMissions();
     fetchScenarios();
     fetchRequirements();
     fetchParameters();
     fetchFunctions();
-    
-    console.log("Refresh complete - UI should update soon");
-  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions, fetchDomainDisplayConfigs]);
+    console.log("Item data refresh initiated.");
 
-  // Add a useEffect to monitor changes to domainDisplayConfig and force a rerender
-  useEffect(() => {
-    console.log("domainDisplayConfig changed:", domainDisplayConfig);
-    
-    // If we have Requirements domain config and it has items, log it
-    const reqConfig = domainDisplayConfig?.Requirements;
-    if (reqConfig && Array.isArray(reqConfig) && reqConfig.length > 0) {
-      console.log(`Requirements config has ${reqConfig.length} items:`, reqConfig);
-    } else {
-      console.log("No Requirements display config items found");
-    }
-    
-    // Force recalculation of nodes if we have display configs and domain data
-    if (Object.keys(domainDisplayConfig).length > 0 && 
-        !isLoadingMissions && !isLoadingScenarios && 
-        !isLoadingRequirements && !isLoadingParameters && 
-        !isLoadingFunctions) {
-      console.log("Force updating nodes after domainDisplayConfig change");
-      
-      // Use a timeout to ensure the state update has propagated
-      setTimeout(() => {
-        // This will trigger the node calculation useEffect
-        setForceUpdate(prev => prev + 1);
-      }, 200);
-    }
-  }, [domainDisplayConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions]);
+    // Schedule a forced update slightly later
+    setTimeout(() => {
+      console.log("Triggering delayed forceUpdate for node recalculation...");
+      setForceUpdate(prev => prev + 1);
+    }, 100); // Delay of 100ms
+
+  }, [
+    fetchMissions, 
+    fetchScenarios, 
+    fetchRequirements, 
+    fetchParameters, 
+    fetchFunctions,
+    setForceUpdate // Add setForceUpdate dependency
+  ]);
 
   // --- Main JSX for Flow View --- 
   return (
@@ -2588,7 +2382,7 @@ function FlowView() {
             connectionSuccess={connectionSuccess}
             position={{ top: 130, left: 510 }} // Position based on user screenshot
           />
-
+          
           {/* Flow Controls with Legend and Display Options */}
           <FlowControls 
             nodeDisplayMode={nodeDisplayMode}
@@ -2608,12 +2402,12 @@ function FlowView() {
             setArrowheadType={setArrowheadType}
           />
           
-          {/* Domain Configuration Panel */}
+          {/* Domain Configuration Panel (ensure onSave uses updated refreshFlowData) */}
           <DomainConfigPanel 
             isOpen={activeDomainConfig !== null}
-            onClose={closeDomainConfigPanel}
+            onClose={closeDomainConfigPanel} // Uses updated version
             domainName={activeDomainConfig || ''}
-            onSave={refreshFlowData} // Pass the refresh function
+            onSave={refreshFlowData} // Uses updated version
           />
         </>
       )}
@@ -2623,12 +2417,57 @@ function FlowView() {
 
 // App component now handles routing and overall layout
 function App() {
+  const [appConfig, setAppConfig] = useState({
+    domains: {
+      Mission: { color: '#14364F', displayItems: [] },
+      Scenario: { color: '#14364F', displayItems: [] },
+      Requirements: { color: '#14364F', displayItems: [] },
+      Parameter: { color: '#14364F', displayItems: [] },
+      Functions: { color: '#14364F', displayItems: [] }
+    }
+  });
+
+  // Load saved config on mount
+  useEffect(() => {
+    const loadDomainConfigs = async () => {
+      try {
+        const domains = ['Mission', 'Scenario', 'Requirements', 'Parameter', 'Functions'];
+        const configs = {};
+        
+        for (const domain of domains) {
+          try {
+            const response = await fetch(createApiEndpoint(`config/domain-display/${domain}`));
+            if (response.ok) {
+              const config = await response.json();
+              configs[domain] = {
+                color: config.domainColor || '#14364F',
+                displayItems: config.displayItems || []
+              };
+            }
+          } catch (err) {
+            console.warn(`Failed to load config for ${domain}:`, err);
+            configs[domain] = { color: '#14364F', displayItems: [] };
+          }
+        }
+
+        setAppConfig(prev => ({
+          ...prev,
+          domains: configs
+        }));
+      } catch (err) {
+        console.error('Failed to load domain configurations:', err);
+      }
+    };
+
+    loadDomainConfigs();
+  }, []);
+
   return (
-    // ReactFlowProvider is needed around components using flow hooks
+    <AppContext.Provider value={{ appConfig, setAppConfig }}>
     <ReactFlowProvider> 
         <div className="App" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
             <AppHeader />
-            <div className="main-content" style={{ flexGrow: 1, overflow: 'auto' }}> { /* Allow content to scroll */}
+          <div className="main-content" style={{ flexGrow: 1, overflow: 'auto' }}>
                 <Routes>
                     <Route path="/" element={<FlowView />} />
                     <Route path="/settings" element={<SettingsPage />} />
@@ -2636,6 +2475,7 @@ function App() {
             </div>
         </div>
     </ReactFlowProvider>
+    </AppContext.Provider>
   );
 }
 

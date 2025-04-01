@@ -234,28 +234,41 @@ router.put('/', async (req, res) => {
 router.get('/domain-display/:domainName', async (req, res) => {
   const { domainName } = req.params;
   const session = driver.session();
+  console.log(`[GET /api/config/domain-display/${domainName}] Handling request...`);
   try {
     const result = await session.run(
+      // Revert to returning specific properties directly
       `MATCH (d:DomainDisplayConfig {domainName: $domainName})
        RETURN d.displayItems AS displayItems, d.domainColor AS domainColor`,
       { domainName: domainName }
     );
+    console.log(`[GET /api/config/domain-display/${domainName}] Query executed. Records found: ${result.records.length}`);
 
     if (result.records.length > 0) {
       const record = result.records[0];
+      
+      // Get properties directly from the record
+      const displayItems = record.get('displayItems') || []; // Default to empty array
+      const domainColor = record.get('domainColor') || '#14364F'; // Default color
+      
+      // Log the extracted properties
+      console.log(`[GET /api/config/domain-display/${domainName}] Extracted displayItems from record:`, JSON.stringify(displayItems));
+      console.log(`[GET /api/config/domain-display/${domainName}] Extracted domainColor from record:`, domainColor);
+      
       res.status(200).json({
-        displayItems: record.get('displayItems') || [],
-        domainColor: record.get('domainColor') || '#00587c' // Default color
+        displayItems: displayItems,
+        domainColor: domainColor
       });
     } else {
-      // No config found, return defaults (or indicate not found)
-      res.status(200).json({ // Return 200 with defaults, or 404 if preferred
+      // No config found, return defaults
+      console.log(`[GET /api/config/domain-display/${domainName}] No node found. Returning default config.`);
+      res.status(200).json({ 
         displayItems: [],
-        domainColor: '#00587c'
+        domainColor: '#14364F'
       });
     }
   } catch (error) {
-    console.error(`Error retrieving display config for ${domainName}:`, error);
+    console.error(`[GET /api/config/domain-display/${domainName}] Error retrieving display config:`, error);
     res.status(500).json({ error: `Failed to get display config for ${domainName}`, details: error.message });
   } finally {
     await session.close();
@@ -266,36 +279,58 @@ router.get('/domain-display/:domainName', async (req, res) => {
 router.put('/domain-display/:domainName', async (req, res) => {
   const { domainName } = req.params;
   const { displayItems, domainColor } = req.body;
+  
+  // Log incoming request details
+  console.log(`[PUT /api/config/domain-display/${domainName}] Received request body:`, req.body);
+  console.log(`[PUT /api/config/domain-display/${domainName}] Extracted displayItems:`, displayItems);
+  console.log(`[PUT /api/config/domain-display/${domainName}] Extracted domainColor:`, domainColor);
 
   // Validation
   if (!Array.isArray(displayItems) || typeof domainColor !== 'string') {
+    console.error(`[PUT /api/config/domain-display/${domainName}] Validation failed.`);
     return res.status(400).json({ error: 'Invalid display configuration data provided.' });
   }
 
   const session = driver.session();
   try {
+    const params = {
+      domainName: domainName,
+      displayItems: displayItems,
+      domainColor: domainColor
+    };
+    console.log(`[PUT /api/config/domain-display/${domainName}] Executing MERGE query with params:`, params);
+    
     // Use MERGE to create or update the config node for this specific domain
     const result = await session.run(
       `MERGE (d:DomainDisplayConfig {domainName: $domainName})
        ON CREATE SET d.createdAt = datetime(), d.displayItems = $displayItems, d.domainColor = $domainColor
        ON MATCH SET d.updatedAt = datetime(), d.displayItems = $displayItems, d.domainColor = $domainColor
        RETURN d`,
-      {
-        domainName: domainName,
-        displayItems: displayItems,
-        domainColor: domainColor
-      }
+      params
     );
+    
+    console.log(`[PUT /api/config/domain-display/${domainName}] Neo4j query result records length:`, result.records.length);
 
     if (result.records.length === 0) {
+      console.error(`[PUT /api/config/domain-display/${domainName}] MERGE query failed to return a node.`);
       throw new Error('Failed to save domain display configuration in database');
     }
 
-    const savedConfig = result.records[0].get('d').properties;
+    const savedNode = result.records[0].get('d');
+    const savedConfig = savedNode.properties;
+    console.log(`[PUT /api/config/domain-display/${domainName}] Saved node properties:`, savedConfig);
+    
+    // Verify the saved property directly
+    if (savedConfig && Array.isArray(savedConfig.displayItems)) {
+       console.log(`[PUT /api/config/domain-display/${domainName}] Verification: savedConfig.displayItems (${savedConfig.displayItems.length}):`, savedConfig.displayItems);
+    } else {
+       console.error(`[PUT /api/config/domain-display/${domainName}] Verification FAILED: displayItems property missing or not an array in saved node!`);
+    }
+
     res.status(200).json({ message: 'Configuration saved successfully', config: savedConfig });
 
   } catch (error) {
-    console.error(`Error saving display config for ${domainName}:`, error);
+    console.error(`[PUT /api/config/domain-display/${domainName}] Error during save:`, error);
     res.status(500).json({ error: `Failed to save display config for ${domainName}`, details: error.message });
   } finally {
     await session.close();

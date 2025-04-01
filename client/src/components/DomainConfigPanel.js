@@ -191,18 +191,41 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
     }
   }, [availableItems, topNodeOnly, domainName]);
 
+  // Track changes to selectedItems
+  useEffect(() => {
+    console.log(`DEBUG: selectedItems state changed, now has ${selectedItems.length} items`);
+    if (selectedItems.length > 0) {
+      console.log(`DEBUG: Current selected items:`, selectedItems.map(item => item.id));
+    }
+  }, [selectedItems]);
+
   // Handle adding an item to selected items
   const handleAddItem = () => {
-    if (!selectedItemId) return;
+    console.log(`DEBUG: Add button clicked, selectedItemId=${selectedItemId}`);
+    
+    if (!selectedItemId) {
+      console.log(`DEBUG: No item selected to add`);
+      return;
+    }
 
+    console.log(`DEBUG: Looking for item with id=${selectedItemId} in availableItems`);
     const itemToAdd = availableItems.find((item) => item.id === selectedItemId);
-    if (!itemToAdd) return;
+    
+    if (!itemToAdd) {
+      console.log(`DEBUG: Item with id=${selectedItemId} not found in available items!`);
+      return;
+    }
 
-    console.log(`Adding item to selected items:`, itemToAdd);
+    console.log(`DEBUG: Adding item to selected items:`, itemToAdd);
 
     // Only add if not already in the list
     if (!selectedItems.some((item) => item.id === selectedItemId)) {
-      setSelectedItems([...selectedItems, itemToAdd]);
+      console.log(`DEBUG: Item not already in list, adding it now`);
+      const newSelectedItems = [...selectedItems, itemToAdd];
+      console.log(`DEBUG: New selected items will have ${newSelectedItems.length} items`);
+      setSelectedItems(newSelectedItems);
+    } else {
+      console.log(`DEBUG: Item already in selected list, not adding again`);
     }
 
     setSelectedItemId("");
@@ -230,16 +253,24 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
     setSaveSuccess(false);
     setError(null);
 
+    const itemIds = selectedItems.map((item) => item.id);
+    console.log(`DEBUG: Preparing to save ${itemIds.length} selected items:`, itemIds);
+    
     const configToSave = {
-      displayItems: selectedItems.map((item) => item.id),
+      displayItems: itemIds,
       domainColor: domainColor,
     };
 
     console.log(`Saving config for ${domainName}:`, configToSave);
 
     try {
+      // Log the request details
+      const url = createApiEndpoint(`config/domain-display/${domainName}`);
+      console.log(`DEBUG: Sending PUT request to: ${url}`);
+      console.log(`DEBUG: Request body:`, JSON.stringify(configToSave, null, 2));
+      
       const response = await fetch(
-        createApiEndpoint(`config/domain-display/${domainName}`),
+        url,
         {
           method: "PUT",
           headers: {
@@ -337,7 +368,10 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
               <div className="item-selector">
                 <select
                   value={selectedItemId}
-                  onChange={(e) => setSelectedItemId(e.target.value)}
+                  onChange={(e) => {
+                    console.log(`DEBUG: Dropdown selection changed to: ${e.target.value}`);
+                    setSelectedItemId(e.target.value);
+                  }}
                   className="item-select"
                 >
                   <option value="">-- Select an item to display --</option>

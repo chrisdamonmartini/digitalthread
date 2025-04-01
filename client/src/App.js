@@ -1174,6 +1174,20 @@ function FlowView() {
     console.log("Domain Colors:", JSON.stringify(domainColors));
     console.log("Available domains:", localDomainOrder);
 
+    // *** START DEBUG LOGGING FOR REQUIREMENTS ***
+    if (requirements && requirements.length > 0) {
+      console.log("DEBUG: First 3 Requirement items:", requirements.slice(0, 3));
+      const expectedChildKey = `child${'Requirements'.replace(/\s+/g, '')}Ids`;
+      console.log(`DEBUG: Expecting child key: '${expectedChildKey}'`);
+      console.log("DEBUG: Found Requirement Child IDs Set:", childIdSets['Requirements']);
+      // Check if any requirement actually has the expected key
+      const sampleWithKey = requirements.find(r => r.hasOwnProperty(expectedChildKey));
+      console.log(`DEBUG: Sample item HAS '${expectedChildKey}' key?`, !!sampleWithKey);
+    } else {
+      console.log("DEBUG: No requirements data found.");
+    }
+    // *** END DEBUG LOGGING FOR REQUIREMENTS ***
+
     const newNodes = [];
     const newEdges = [];
     

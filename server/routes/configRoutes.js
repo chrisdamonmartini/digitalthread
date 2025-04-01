@@ -230,108 +230,75 @@ router.put('/', async (req, res) => {
    }
 });
 
-// GET /api/config/domain-display/:domainName
-// Get the display configuration for a specific domain
+// GET /api/config/domain-display/:domainName - Retrieve display config for a domain
 router.get('/domain-display/:domainName', async (req, res) => {
   const { domainName } = req.params;
-  
-  if (!domainName) {
-    return res.status(400).json({ error: 'Domain name is required' });
-  }
-  
   const session = driver.session();
   try {
-    // Check if a display configuration already exists for this domain
     const result = await session.run(
-      `MATCH (c:DomainDisplayConfig {domainName: $domainName})
-       RETURN c.displayItems AS displayItems, c.domainColor AS domainColor`,
-      { domainName }
+      `MATCH (d:DomainDisplayConfig {domainName: $domainName})
+       RETURN d.displayItems AS displayItems, d.domainColor AS domainColor`,
+      { domainName: domainName }
     );
-    
-    if (result.records.length === 0) {
-      // No configuration found, return an empty list
-      return res.json({ displayItems: [], domainColor: '#14364F' });
+
+    if (result.records.length > 0) {
+      const record = result.records[0];
+      res.status(200).json({
+        displayItems: record.get('displayItems') || [],
+        domainColor: record.get('domainColor') || '#00587c' // Default color
+      });
+    } else {
+      // No config found, return defaults (or indicate not found)
+      res.status(200).json({ // Return 200 with defaults, or 404 if preferred
+        displayItems: [],
+        domainColor: '#00587c'
+      });
     }
-    
-    // Get display item IDs and domain color
-    const displayItemIds = result.records[0].get('displayItems') || [];
-    const domainColor = result.records[0].get('domainColor') || '#14364F';
-    
-    // If there are display items, fetch their details
-    let displayItems = [];
-    if (displayItemIds.length > 0) {
-      // Dynamically determine the label to use based on domain name
-      // This assumes your domain nodes have labels that match their names
-      // Note: Neo4j is case-sensitive for labels, so we need to get the first character uppercase
-      let domainLabel = domainName;
-      if (domainLabel === 'Requirements') {
-        domainLabel = 'Requirement'; // Handle special case for Requirements label
-      } else if (domainLabel === 'Functions') {
-        domainLabel = 'Function'; // Handle special case for Functions label
-      } else if (domainLabel.endsWith('s')) {
-        // Remove trailing 's' for most domains
-        domainLabel = domainLabel.slice(0, -1);
-      }
-      
-      // Fetch the actual items
-      const itemsResult = await session.run(
-        `MATCH (item:${domainLabel})
-         WHERE item.id IN $itemIds
-         RETURN item`,
-        { itemIds: displayItemIds }
-      );
-      
-      displayItems = itemsResult.records.map(record => record.get('item').properties);
-    }
-    
-    res.json({ displayItems, domainColor });
   } catch (error) {
-    console.error(`Error retrieving ${domainName} display configuration:`, error);
-    res.status(500).json({ error: `Failed to retrieve ${domainName} display configuration`, details: error.message });
+    console.error(`Error retrieving display config for ${domainName}:`, error);
+    res.status(500).json({ error: `Failed to get display config for ${domainName}`, details: error.message });
   } finally {
-    session.close();
+    await session.close();
   }
 });
 
-// PUT /api/config/domain-display/:domainName
-// Update the display configuration for a specific domain
+// PUT /api/config/domain-display/:domainName - Update display config for a domain
 router.put('/domain-display/:domainName', async (req, res) => {
   const { domainName } = req.params;
   const { displayItems, domainColor } = req.body;
-  
-  if (!domainName) {
-    return res.status(400).json({ error: 'Domain name is required' });
+
+  // Validation
+  if (!Array.isArray(displayItems) || typeof domainColor !== 'string') {
+    return res.status(400).json({ error: 'Invalid display configuration data provided.' });
   }
-  
-  if (!Array.isArray(displayItems)) {
-    return res.status(400).json({ error: 'displayItems must be an array of item IDs' });
-  }
-  
+
   const session = driver.session();
   try {
-    // Use MERGE to create or update the configuration
-    await session.run(
-      `MERGE (c:DomainDisplayConfig {domainName: $domainName})
-       SET c.displayItems = $displayItems,
-           c.domainColor = $domainColor,
-           c.updatedAt = datetime()
-       RETURN c`,
-      { 
-        domainName,
-        displayItems,
-        domainColor: domainColor || '#14364F'
+    // Use MERGE to create or update the config node for this specific domain
+    const result = await session.run(
+      `MERGE (d:DomainDisplayConfig {domainName: $domainName})
+       ON CREATE SET d.createdAt = datetime(), d.displayItems = $displayItems, d.domainColor = $domainColor
+       ON MATCH SET d.updatedAt = datetime(), d.displayItems = $displayItems, d.domainColor = $domainColor
+       RETURN d`,
+      {
+        domainName: domainName,
+        displayItems: displayItems,
+        domainColor: domainColor
       }
     );
-    
-    res.json({ 
-      success: true, 
-      message: `Successfully updated display configuration for ${domainName}` 
-    });
+
+    if (result.records.length === 0) {
+      throw new Error('Failed to save domain display configuration in database');
+    }
+
+    const savedConfig = result.records[0].get('d').properties;
+    res.status(200).json({ message: 'Configuration saved successfully', config: savedConfig });
+
   } catch (error) {
-    console.error(`Error updating ${domainName} display configuration:`, error);
-    res.status(500).json({ error: `Failed to update ${domainName} display configuration`, details: error.message });
+    console.error(`Error saving display config for ${domainName}:`, error);
+    res.status(500).json({ error: `Failed to save display config for ${domainName}`, details: error.message });
   } finally {
-    session.close();
+    await session.close();
   }
 });
 

@@ -2454,6 +2454,18 @@ function FlowView() {
     fetchFunctions
   ]);
 
+  // Define a function to refetch all necessary flow data
+  const refreshFlowData = useCallback(() => {
+    console.log("Refreshing flow data after config change...");
+    fetchMissions();
+    fetchScenarios();
+    fetchRequirements();
+    fetchParameters();
+    fetchFunctions();
+    // Note: Edges are usually derived from node data, 
+    // but if you fetch edges separately, add that here too.
+  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]);
+
   // --- Main JSX for Flow View --- 
   return (
     <div className="flow-view-container" style={{ height: '100%' }}>
@@ -2551,6 +2563,7 @@ function FlowView() {
             isOpen={activeDomainConfig !== null}
             onClose={closeDomainConfigPanel}
             domainName={activeDomainConfig || ''}
+            onSave={refreshFlowData} // Pass the refresh function
           />
         </>
       )}

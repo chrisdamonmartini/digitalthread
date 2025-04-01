@@ -845,3 +845,214 @@ main {
 .domain-config-panel .selected-items-list {
   margin-top: 20px;
 }
+
+/* Domain Configuration Panel Main Styles */
+.domain-config-panel {
+  position: fixed; /* Position relative to the viewport */
+  top: 0;
+  right: -450px; /* Start hidden off-screen (adjust width as needed) */
+  width: 450px; /* Increased width */
+  height: 100%;
+  background-color: white;
+  box-shadow: -2px 0 5px rgba(0,0,0,0.2);
+  z-index: 1000; /* Ensure it's above other elements */
+  transition: right 0.3s ease-in-out; /* Smooth slide animation */
+  overflow-y: auto; /* Allow vertical scrolling if content overflows */
+  display: flex;
+  flex-direction: column;
+}
+
+.domain-config-panel.open {
+  right: 0; /* Slide into view */
+}
+
+.domain-config-panel .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: #f8f9fa; /* Light header background */
+  border-bottom: 1px solid #dee2e6;
+}
+
+.domain-config-panel .panel-header h2 {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.domain-config-panel .close-button {
+  background: none;
+  border: none;
+  font-size: 1.8em;
+  cursor: pointer;
+  padding: 0 5px;
+  line-height: 1;
+  color: #6c757d;
+}
+
+.domain-config-panel .close-button:hover {
+  color: #000;
+}
+
+.domain-config-panel .panel-content {
+  padding: 20px;
+  flex-grow: 1; /* Allow content to take remaining space */
+}
+
+.domain-config-panel .config-section {
+  margin-bottom: 25px;
+}
+
+.domain-config-panel .config-section h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1em;
+  font-weight: 600;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.domain-config-panel .config-description {
+  font-size: 0.9em;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.domain-config-panel .config-actions {
+  padding: 15px 20px;
+  border-top: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+  display: flex;
+  justify-content: flex-end; /* Align buttons to the right */
+  gap: 10px; /* Space between buttons */
+}
+
+.domain-config-panel .action-button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.domain-config-panel .action-button.cancel {
+  background-color: #6c757d;
+  color: white;
+  border-color: #6c757d;
+}
+.domain-config-panel .action-button.cancel:hover {
+  background-color: #5a6268;
+  border-color: #545b62;
+}
+
+.domain-config-panel .action-button.save {
+  background-color: #00587c; /* Match theme */
+  color: white;
+  border-color: #00587c;
+}
+.domain-config-panel .action-button.save:hover:not(:disabled) {
+  background-color: #004666;
+  border-color: #003850;
+}
+.domain-config-panel .action-button.save:disabled {
+  background-color: #e9ecef;
+  border-color: #dee2e6;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Style checkbox */
+.domain-config-panel .checkbox-label {
+    display: inline-flex; /* Use inline-flex for better alignment */
+    align-items: center; /* Vertically center checkbox and text */
+    cursor: pointer;
+    margin-bottom: 10px; /* Add some space below */
+}
+
+.domain-config-panel .checkbox-label input[type="checkbox"] {
+    margin-right: 8px; /* Space between checkbox and label text */
+    width: 16px; /* Standard checkbox size */
+    height: 16px;
+    cursor: pointer;
+}
+
+/* Selected items list styles */
+.domain-config-panel .selected-items-list h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 0.95em;
+    font-weight: 600;
+}
+
+.domain-config-panel .selected-items-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 150px; /* Limit height and allow scroll */
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    padding: 5px;
+}
+
+.domain-config-panel .selected-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 8px;
+    margin-bottom: 3px;
+    background-color: #f9f9f9;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+.domain-config-panel .remove-item-button {
+    background: none;
+    border: none;
+    color: #dc3545; /* Red color for remove */
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 0 3px;
+    line-height: 1;
+}
+
+.domain-config-panel .remove-item-button:hover {
+    color: #a0232e;
+}
+
+.domain-config-panel .no-items-message {
+    font-style: italic;
+    color: #888;
+    font-size: 0.9em;
+    padding: 10px;
+    text-align: center;
+    border: 1px dashed #ddd;
+    border-radius: 4px;
+}
+
+/* Visual Settings - Color Picker */
+.domain-config-panel .color-picker label {
+    display: flex;
+    align-items: center;
+}
+
+.domain-config-panel .color-picker input[type="color"] {
+    margin-left: 10px;
+    border: 1px solid #ccc;
+    padding: 2px;
+    height: 30px;
+    width: 50px;
+    cursor: pointer;
+}
+
+/* Success Message */
+.domain-config-panel .success-message {
+    padding: 10px;
+    background-color: #d4edda; /* Light green */
+    border: 1px solid #c3e6cb;
+    color: #155724;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    text-align: center;
+    font-weight: 500;
+}

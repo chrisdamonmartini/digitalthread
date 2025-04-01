@@ -16,7 +16,7 @@ const createApiEndpoint = (path) => {
   return `${getApiUrl()}/${path}`;
 };
 
-const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
+const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
   const [selectedItems, setSelectedItems] = useState([]);
   const [availableItems, setAvailableItems] = useState([]);
   const [filteredItems, setFilteredItems] = useState([]);
@@ -80,43 +80,42 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
         console.log(`Received ${data.length} items for ${domainName}`);
         setAvailableItems(data);
 
-        // Fetch currently selected items and visual configs for display
+        // Add detailed logging for the fetched items
+        if (domainName === "Requirement" && data.length > 0) {
+          console.log("DEBUG: Fetched Requirement items (first 5):", JSON.stringify(data.slice(0, 5), null, 2));
+          const itemsWithChildIds = data.filter(item => item.childRequirementsIds && Array.isArray(item.childRequirementsIds));
+          console.log(`DEBUG: Found ${itemsWithChildIds.length} Requirement items with 'childRequirementsIds' property.`);
+          if (itemsWithChildIds.length > 0) {
+            console.log("DEBUG: First item with childRequirementsIds:", JSON.stringify(itemsWithChildIds[0], null, 2));
+          }
+        }
+
+        // Fetch domain-specific display config
         console.log(`Fetching display configuration for domain: ${domainName}`);
         const configResponse = await fetch(
-          createApiEndpoint(`config/domain-display/${domainName}`),
+          createApiEndpoint(`config/domain-display/${domainName}`)
         );
-
         if (configResponse.ok) {
           const configData = await configResponse.json();
           console.log(`Received display config:`, configData);
-
-          // Set domain color if available
           if (configData.domainColor) {
             setDomainColor(configData.domainColor);
           }
-
-          // If we have display items, load their full details by matching IDs
           if (configData.displayItems && configData.displayItems.length > 0) {
-            console.log(
-              `Found ${configData.displayItems.length} selected items in config`,
-            );
+            // Match fetched config IDs with full item data
             const selectedDisplayItems = data.filter((item) =>
-              configData.displayItems.includes(item.id),
-            );
-            console.log(
-              `Matched ${selectedDisplayItems.length} items from available items`,
+              configData.displayItems.includes(item.id)
             );
             setSelectedItems(selectedDisplayItems);
           } else {
-            console.log("No selected items found in config");
-            setSelectedItems([]);
+            setSelectedItems([]); // No items specified in config
           }
         } else {
-          console.log(
-            `No display configuration found for ${domainName}, using defaults`,
-          );
-          setSelectedItems([]);
+          console.log(`No display configuration found for ${domainName}, using defaults`);
+          setSelectedItems([]); // Default to empty if fetch fails or no config exists
+          setDomainColor('#00587c'); // Set default color
         }
+
       } catch (err) {
         console.error(`Error loading ${domainName} items:`, err);
         setError(`Could not load ${domainName} items. ${err.message}`);
@@ -234,6 +233,9 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
       setSaveSuccess(true);
       setTimeout(() => {
         onClose(); // Close panel after success
+        if (onSave) {
+          onSave(); // Call the refresh function passed from App.js
+        }
       }, 1000);
     } catch (err) {
       console.error("Error saving display configuration:", err);

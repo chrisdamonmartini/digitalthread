@@ -1107,20 +1107,6 @@ function FlowView() {
 
       console.log(`Successfully created relationship: ${result.message}`);
       
-      // Create the visual edge if relationship was created successfully
-      if (showRelationshipLines) {
-        const newEdge = {
-          id: `${sourceNodeId}-${relationshipType}-${targetNodeId}`,
-          source: sourceNodeId,
-          target: targetNodeId,
-          type: useCurvedEdges ? 'custom' : 'straight', // Use custom edge type
-          animated: false,
-          style: { stroke: '#00587c', strokeWidth: 2 }
-        };
-        
-        setEdges(eds => [...eds, newEdge]);
-      }
-      
       // Set success state for UI feedback
       setConnectionSuccess(true);
       setSuccessMessage(`Created ${relationshipType} relationship from ${sourceNodeId} to ${targetNodeId}`);
@@ -2481,32 +2467,6 @@ function FlowView() {
     fetchParameters, 
     fetchFunctions
   ]);
-
-  // Add effect to update only edge types when lineType changes
-  useEffect(() => {
-    // Skip if there are no edges or we're still loading
-    if (!edges || edges.length === 0 || !appInitialized) return;
-    
-    console.log("Updating edge types based on line type preference...");
-    
-    // Update all edges to use the new edge type
-    const updatedEdges = edges.map(edge => ({
-      ...edge,
-      type: lineType,
-      markerEnd: {
-        ...edge.markerEnd,
-        type: MarkerType[arrowheadType]
-      }
-    }));
-    
-    // Force a complete re-render of the edges
-    setEdges([]);
-    
-    // Use setTimeout to ensure the state update cycle completes
-    setTimeout(() => {
-      setEdges(updatedEdges);
-    }, 10);
-  }, [lineType, arrowheadType, appInitialized, edges, setEdges]);
 
   // --- Main JSX for Flow View --- 
   return (

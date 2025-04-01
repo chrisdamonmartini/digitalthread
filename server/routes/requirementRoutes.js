@@ -90,19 +90,21 @@ router.get('/', async (req, res) => {
       `MATCH (r:Requirement)
        OPTIONAL MATCH (s:Scenario)-[:REQUIRES]->(r)
        OPTIONAL MATCH (r)-[:DEFINES]->(p:Parameter)
-       OPTIONAL MATCH (r)-[:HAS_CHILD]->(child:Requirement) // Find children
-       RETURN r, 
-              collect(DISTINCT s.id) AS requiringScenarioIds, 
-              collect(DISTINCT p.id) AS definedParameterIds,
-              collect(DISTINCT child.id) AS childRequirementsIds // Changed from childRequirementIds to childRequirementsIds
-       ORDER BY r.id` 
+       RETURN r,
+              collect(DISTINCT s.id) AS requiringScenarioIds,
+              collect(DISTINCT p.id) AS definedParameterIds
+       ORDER BY r.id`
     );
-    const requirements = result.records.map(record => ({
-      ...record.get('r').properties,
-      requiringScenarioIds: record.get('requiringScenarioIds'),
-      definedParameterIds: record.get('definedParameterIds'),
-      childRequirementsIds: record.get('childRequirementsIds') // Changed from childRequirementIds to childRequirementsIds
-    }));
+    const requirements = result.records.map(record => {
+      const requirementProps = record.get('r').properties;
+      return {
+        ...requirementProps,
+        requiringScenarioIds: record.get('requiringScenarioIds'),
+        definedParameterIds: record.get('definedParameterIds'),
+        // Get childRequirementsIds directly from the property, default to empty array
+        childRequirementsIds: requirementProps.childRequirementsIds || []
+      };
+    });
     res.status(200).json(requirements);
   } catch (error) {
     console.error('Error retrieving requirements:', error);

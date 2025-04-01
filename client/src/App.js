@@ -631,6 +631,22 @@ function FlowView() {
   const [config, setConfig] = useState(null);
   const [allowOnlyAdjacentConnections, setAllowOnlyAdjacentConnections] = useState(true);
 
+  // State to track expanded nodes in the tree view
+  const [expandedNodes, setExpandedNodes] = useState(new Set());
+
+  // Function to toggle node expansion
+  const toggleNodeExpansion = useCallback((nodeId) => {
+    setExpandedNodes(prevExpanded => {
+      const newExpanded = new Set(prevExpanded);
+      if (newExpanded.has(nodeId)) {
+        newExpanded.delete(nodeId);
+      } else {
+        newExpanded.add(nodeId);
+      }
+      return newExpanded;
+    });
+  }, [setExpandedNodes]);
+
   // Forward-declare updateLocalRelationship to avoid reference error
   const updateLocalRelationshipTemp = (fromDomain, fromId, toId) => {
     console.log("Updating local relationship", { fromDomain, fromId, toId });
@@ -1207,6 +1223,13 @@ function FlowView() {
         Functions: new Set(functions.flatMap(item => item.childFunctionIds || [])),
     };
 
+    // Function to determine if a node has children
+    const nodeHasChildren = (domain, itemId) => {
+      const childIdKey = `child${domain.replace(/\s+/g, '')}Ids`;
+      const item = itemMaps[domain]?.get(itemId);
+      return item && item[childIdKey] && item[childIdKey].length > 0;
+    };
+
     let currentColumnX = columnStartX;
 
     localDomainOrder.forEach((domainName) => {
@@ -1246,11 +1269,10 @@ function FlowView() {
             const item = itemMap.get(itemId);
             if (!item) return 0;
             
-            // Use display mode-specific base height
+            // Base height for the item itself
             let calculatedNodeHeight = baseItemHeight;
-            
-            // Add extra height for details in full mode
             if (nodeDisplayMode === 'full') {
+                // Add extra height for details
                 if ((domainName === 'Parameter' && (item.unit || item.valueType)) || 
                     (domainName === 'Functions' && item.functionType)) {
                     calculatedNodeHeight += detailLineHeight;
@@ -1260,313 +1282,139 @@ function FlowView() {
                     calculatedNodeHeight += lines * descriptionLineHeight;
                 }
             }
-            
-            // Calculate height for this branch (node + children)
-            let currentBranchHeight = calculatedNodeHeight;
+
+            // Check if this node is expanded
+            const isExpanded = expandedNodes.has(itemId);
             const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
             const childIds = item[childIdKey] || [];
-            
-            // Add heights of children with gaps
-            if (childIds.length > 0) {
+            let childrenHeight = 0;
+
+            // Only calculate children height if the node is expanded and has children
+            if (isExpanded && childIds.length > 0) {
                 childIds.forEach((childId, index) => {
-                    currentBranchHeight += calculateBranchHeight(childId);
+                    childrenHeight += calculateBranchHeight(childId);
                     // Add gap after each child except the last
                     if (index < childIds.length - 1) {
-                        currentBranchHeight += nodeGapY;
+                        childrenHeight += nodeGapY;
                     }
                 });
             }
             
-            return currentBranchHeight;
+            // Total height is the node itself plus its visible children
+            return calculatedNodeHeight + childrenHeight;
         };
         
-        // First calculate content height without processing nodes
+        // Recalculate totalContentHeight based on expanded nodes
+        totalContentHeight = 0; // Reset before recalculating
         if (topLevelItems.length > 0) {
-            // Get raw content height
             topLevelItems.forEach((topItem, index) => {
                 totalContentHeight += calculateBranchHeight(topItem.id);
-                // Add gap after each item (except the last one if we don't want padding at the bottom)
                 if (index < topLevelItems.length - 1) {
                     totalContentHeight += nodeGapY;
                 }
             });
         }
-        
-        // Define filter box variables
-        const filterBoxHeight = 48; // Increase height by 25% (from 38 to 48)
-        const filterBoxPadding = 8;
-        const spaceBelowFilter = 10;
-        const searchIconSize = 16;
-        
-        // Modify filter positioning
-        const filterBoxWidth = nodeWidth * 0.85; // Increase width from 70% to 85%
-        const filterBoxY = parentPadding + parentTitleHeight + 30; // Move down further (from 20 to 30)
-        
-        // Calculate total parent height needed with padding
-        const parentHeight = parentPadding + parentTitleHeight + spaceBelowTitle + 
-                             filterBoxHeight + spaceBelowFilter + // Add space for filter
-                             totalContentHeight + parentPadding;
-        const parentNodeId = `domain-${domainName.replace(/\s+/g, '-')}`;
-        const parentX = currentColumnX;
-        const parentY = 0; 
 
-        // Get domain-specific configuration
-        const domainSpecificConfig = domainConfig[domainName] || {};
-        // Use color from domainColors state if available, otherwise use default
-        const domainColor = domainColors[domainName] || domainSpecificConfig.color || '#14364F';
-
-        // Check if this domain has a stored position and use it
-        const storedPosition = domainPositions[parentNodeId];
-        const usePosition = storedPosition ? storedPosition : { x: parentX, y: parentY };
-        
-        if (storedPosition) {
-          console.log(`Using stored position for ${parentNodeId}: ${JSON.stringify(storedPosition)}`);
-        }
-
-        // --- 1. Add Parent Node --- 
-        newNodes.push({
-          id: parentNodeId,
-          type: 'default',
-          position: usePosition,
-          data: { domainName: domainName }, // Store domain name here
-          draggable: true, // Parent node must be draggable
-          selectable: false,
-          style: { 
-              width: columnWidth, 
-              height: parentHeight, 
-              backgroundColor: 'white',
-              border: `1px solid ${domainColor}`,
-              borderRadius: '4px',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-              cursor: 'default'
-          }
-        });
-
-        // Add drag indicator at top of container with no outline
-        newNodes.push({
-          id: `dragbar-${parentNodeId}`, // Changed to prevent potential conflicts
-          type: 'default',
-          parentNode: parentNodeId,
-          draggable: false,
-          selectable: false,
-          position: { x: 0, y: 0 },
-          data: { label: '' }, // Empty label instead of dots
-          style: {
-            width: columnWidth,
-            height: 20, // Increased height for drag area
-            backgroundColor: 'transparent', // Transparent background
-            cursor: 'grab',
-            fontSize: '9px',
-            color: '#666',
-            textAlign: 'center',
-            pointerEvents: 'none', // Let clicks pass through to parent
-            backgroundImage: `
-              radial-gradient(circle, #666 2px, transparent 2px),
-              radial-gradient(circle, #666 2px, transparent 2px),
-              radial-gradient(circle, #666 2px, transparent 2px),
-              radial-gradient(circle, #666 2px, transparent 2px),
-              radial-gradient(circle, #666 2px, transparent 2px),
-              radial-gradient(circle, #666 2px, transparent 2px)
-            `,
-            backgroundSize: '10px 10px',
-            backgroundPosition: 'center 4px, center 12px, calc(50% - 15px) 4px, calc(50% - 15px) 12px, calc(50% + 15px) 4px, calc(50% + 15px) 12px',
-            backgroundRepeat: 'no-repeat',
-            border: 'none', // Ensure no border
-            outline: 'none', // Ensure no outline
-            boxShadow: 'none', // Ensure no shadow
-            borderRadius: '0' // Ensure no border radius
-          }
-        });
-
-        // Function to create non-draggable node properties
-        const createNonDraggableNode = (node) => ({
-          ...node,
-          draggable: false,
-          selectable: false,
-          style: {
-            ...node.style,
-            pointerEvents: node.className === 'drag-handle' ? 'all' : 'none'
-          }
-        });
-
-        // --- 2. Add Domain Icon (if icons are enabled) ---
-        if (showDomainIcons) {
-          if (domainSpecificConfig.icon) {
-            newNodes.push(createNonDraggableNode({
-              id: `icon-${parentNodeId}`,
-              parentNode: parentNodeId,
-              position: { x: parentPadding, y: parentPadding + 4 },
-              data: { label: null },
-              style: {
-                width: 40,
-                height: 40,
-                backgroundImage: `url(${domainSpecificConfig.icon})`,
-                backgroundSize: 'contain',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'center',
-                backgroundColor: 'transparent',
-                border: 'none',
-                outline: 'none',
-                boxShadow: 'none',
-                filter: 'drop-shadow(0 0 0 transparent)',
-                cursor: 'default',
-                zIndex: 1
-              }
-            }));
-          }
-        }
-
-        // --- 3. Add Title Node (positioned based on icons) ---
-        const titleX = showDomainIcons ? parentPadding + 45 : parentPadding;
-        const titleWidth = showDomainIcons ? nodeWidth - 45 : nodeWidth;
-        
-        newNodes.push({
-          id: `title-${parentNodeId}`,
-          parentNode: parentNodeId, 
-          draggable: false,
-          selectable: false,
-          position: { x: titleX, y: parentPadding },
-          data: { label: domainName },
-          style: { 
-              width: titleWidth,
-              fontFamily: "'Segoe UI', sans-serif",
-              fontWeight: 'bold',
-              fontSize: '1.2em', 
-              color: '#333',
-              textAlign: 'left',
-              paddingBottom: '5px',
+        // --- 4. Add Settings Icon --- 
+        newNodes.push(createNonDraggableNode({
+            id: `settings-icon-${parentNodeId}`,
+            parentNode: parentNodeId,
+            position: { x: columnWidth - parentPadding - 24 - 4, y: parentPadding + 4 },
+            data: { domainName: domainName, // Pass domain name for click handler
+                  label: null },
+            style: {
+              width: 24,
+              height: 24,
+              backgroundImage: `url(${settingsIcon})`,
+              backgroundSize: 'contain',
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'center',
               backgroundColor: 'transparent',
               border: 'none',
               outline: 'none',
-              cursor: 'default',
-              zIndex: 3, // Ensure title is above the handle
-              pointerEvents: 'none'
-          }
-        });
-
-        // Add settings icon to the domain header (right-justified)
+              boxShadow: 'none',
+              cursor: 'pointer',
+              zIndex: 4, // Ensure it's above other elements
+              pointerEvents: 'all' // Ensure it can be clicked
+            }
+          }));
+        
+        // --- 5. Filter Box (using FilterNode) ---
+        const filterNodeId = `filter-${parentNodeId}`;
         newNodes.push({
-          id: `settings-icon-${parentNodeId}`,
+          id: filterNodeId,
+          type: 'filter',
           parentNode: parentNodeId,
           draggable: false,
           selectable: false,
           position: { 
-            x: columnWidth - parentPadding - 24,
-            y: parentPadding + 3
+            x: parentPadding + (nodeWidth * 0.075), // Centered within the 85% width
+            y: filterBoxY 
           },
           data: { 
-            label: null,
-            domainName: domainName
-          },
-          style: {
-            width: 24,
-            height: 24,
-            backgroundImage: `url(${settingsIcon})`,
-            backgroundSize: 'contain',
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'center',
-            backgroundColor: 'transparent',
-            border: 'none',
-            outline: 'none',
-            cursor: 'pointer',
-            zIndex: 5,
-            pointerEvents: 'all' // Ensure the icon receives click events
-          },
-          events: {
-            onClick: (event) => {
-              event.stopPropagation();
-              handleDomainSettingsClick(domainName);
-            }
-          }
-        });
-
-        // --- 4. Add Filter Input Box ---
-        // Use filterBoxY already defined above
-        
-        // Add filter input box
-        newNodes.push({
-          id: `filter-${parentNodeId}`,
-          parentNode: parentNodeId,
-          draggable: false,
-          selectable: false,
-          type: 'filter', // Custom filter node type
-          position: { x: parentPadding, y: filterBoxY }, // Position at the left edge
-          data: { 
-            label: '', 
-            domainId: parentNodeId,
+            placeholder: `Filter ${domainName}...`, 
             updateFilter: updateDomainFilter,
-            placeholder: "Filter",
+            domainId: parentNodeId, // Pass the parent node ID for context
             currentFilter: domainFilters[parentNodeId] || ''
           },
-          style: {
-            width: filterBoxWidth,
-            height: filterBoxHeight - 18, // Match the increased height, adjusting for padding
-            fontSize: '0.9em',
-            fontFamily: "'Segoe UI', sans-serif",
-            zIndex: 10 // Increase zIndex to ensure it's on top
-          }
-        });
-        
-        // Add search icon for the filter box - now positioned to align with the middle of the filter box
-        newNodes.push({
-          id: `search-icon-${parentNodeId}`,
-          parentNode: parentNodeId,
-          draggable: false,
-          selectable: false,
-          position: { 
-            x: parentPadding + filterBoxWidth + 10, // Moved further right (from +4 to +10)
-            y: filterBoxY + ((filterBoxHeight - 18) / 2) - 10 // Move up by 10px for better centering
-          },
-          data: { label: null },
-          style: {
-            width: searchIconSize,
-            height: searchIconSize,
-            backgroundImage: `url(${searchIcon})`,
-            backgroundSize: 'contain',
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'center',
-            backgroundColor: 'transparent',
-            border: 'none',
-            outline: 'none',
-            zIndex: 10 // Increase zIndex to ensure it's on top
+          style: { 
+            width: filterBoxWidth, 
+            height: filterBoxHeight
           }
         });
 
-        // Starting Y for the *items* inside the parent - update to account for filter box
-        let startYOffsetForItems = parentPadding + parentTitleHeight + spaceBelowTitle + filterBoxHeight + spaceBelowFilter;
+        // Adjust start Y offset for actual items based on elements above
+        const startYOffsetForItems = parentPadding + parentTitleHeight + spaceBelowTitle + 
+                                      filterBoxHeight + spaceBelowFilter;
 
-        // --- 5. Recursive function to position CHILD nodes --- 
-        const processNodeAndChildren = (itemId, parentNodeId, relativeXBase, startY, depth) => {
-            const item = itemMap.get(itemId); 
-            if (!item) return { yOffset: 0 };
+        // --- Recursive function to add nodes --- 
+        const processNodeAndChildren = (itemId, parentNodeId, currentX, startY, depth) => {
+            const item = itemMap.get(itemId);
+            if (!item) return { yOffset: 0 }; // Should not happen if data is consistent
+            
+            // Apply filter text
+            const filterText = (domainFilters[parentNodeId] || '').toLowerCase();
+            const itemText = `${item.id} ${item.title || ''} ${item.description || ''}`.toLowerCase();
+            const itemMatchesFilter = !filterText || itemText.includes(filterText);
+            
+            // Base height for the item itself
+            let calculatedNodeHeight = baseItemHeight;
+            if (nodeDisplayMode === 'full') {
+                // Add extra height for details
+                if ((domainName === 'Parameter' && (item.unit || item.valueType)) || 
+                    (domainName === 'Functions' && item.functionType)) {
+                    calculatedNodeHeight += detailLineHeight;
+                }
+                if (item.description) {
+                    const lines = Math.min(descriptionMaxLines, (item.description.length / 30) + 1);
+                    calculatedNodeHeight += lines * descriptionLineHeight;
+                }
+            }
 
-            // Calculate position, ensuring it doesn't extend beyond container bounds
-            const actualIndent = Math.min(depth, maxIndentation) * indentX; // Limit max indentation
-            const nodeX = relativeXBase + actualIndent; 
-            const nodeY = startY; 
-            
-            // Check if this node should be filtered out
-            const currentFilter = domainFilters[parentNodeId]?.toLowerCase() || '';
-            const itemMatchesFilter = !currentFilter || 
-                item.id.toLowerCase().includes(currentFilter) ||
-                item.title.toLowerCase().includes(currentFilter) ||
-                (item.description && item.description.toLowerCase().includes(currentFilter));
-            
+            // Only add node if it matches filter
+            const hasChildren = nodeHasChildren(domainName, itemId);
+            const isExpanded = expandedNodes.has(itemId);
+
             if (itemMatchesFilter) {
                 newNodes.push({
                     id: item.id,
                     parentNode: parentNodeId,
                     extent: 'parent',
-                    position: { x: nodeX, y: nodeY },
+                    position: { x: currentX, y: startY }, // Use currentX for tree positioning
                     type: 'custom',
                     data: { 
                         itemData: item, 
                         domain: domainName, 
                         displayMode: nodeDisplayMode,
-                        maxContentWidth: nodeWidth - actualIndent // Pass available width to node
+                        maxContentWidth: nodeWidth - (depth * indentX), // Adjust width based on depth
+                        // Pass tree props to CustomNode
+                        depth: depth,
+                        hasChildren: hasChildren,
+                        isExpanded: isExpanded,
+                        toggleExpansion: toggleNodeExpansion 
                     },
                     style: { 
-                        width: nodeWidth,
+                        width: nodeWidth - (depth * indentX), // Adjust width for indentation effect
                         maxWidth: '100%',
                         overflow: 'hidden'
                     },
@@ -1575,33 +1423,40 @@ function FlowView() {
                 });
             }
 
-            let cumulativeYOffset = baseItemHeight; // Use dynamic baseItemHeight here
+            let cumulativeYOffset = calculatedNodeHeight; // Start with the height of the current node
             
-            const childIdKey = `child${domainName.replace(/\s+/g, '')}Ids`;
-            const childIds = item[childIdKey] || [];
-            
-            // Process each child node recursively
-            if (childIds.length > 0) {
+            // Only process children if the current node matches the filter AND is expanded
+            if (itemMatchesFilter && isExpanded && hasChildren) {
                  childIds.forEach(childId => {
-                     // Skip processing if parent is filtered out (prevents orphaned children)
-                     if (!itemMatchesFilter) return;
-                    
                      const { yOffset: childBranchHeight } = processNodeAndChildren(
-                         childId, parentNodeId, relativeXBase, startY + cumulativeYOffset + nodeGapY, depth + 1
+                         childId, 
+                         parentNodeId, 
+                         currentX + indentX, // Increase X for children (tree indent)
+                         startY + cumulativeYOffset + nodeGapY, // Position child below parent + gap
+                         depth + 1
                      );
-                     cumulativeYOffset += childBranchHeight + nodeGapY; // Add gap between nodes
+                     cumulativeYOffset += childBranchHeight + nodeGapY; // Add child branch height and gap
                  });
             }
             
-            // Only return the height if this node is visible after filtering
+            // Return the total height occupied by this visible branch
             return { yOffset: itemMatchesFilter ? cumulativeYOffset : 0 };
         };
 
         // --- 6. Process top-level items --- 
         let currentRelativeY = startYOffsetForItems; 
         topLevelItems.forEach(topItem => {
-             const { yOffset: branchHeight } = processNodeAndChildren(topItem.id, parentNodeId, parentPadding, currentRelativeY, 0);
-             currentRelativeY += branchHeight + nodeGapY; // Add gap between top-level items
+             const { yOffset: branchHeight } = processNodeAndChildren(
+                 topItem.id, 
+                 parentNodeId, 
+                 parentPadding, // Start X position for top-level items
+                 currentRelativeY, 
+                 0 // Depth 0
+             );
+             // Only add gap if the branch actually rendered something
+             if (branchHeight > 0) {
+                currentRelativeY += branchHeight + nodeGapY; 
+             }
         });
 
         currentColumnX += columnWidth + columnGap;

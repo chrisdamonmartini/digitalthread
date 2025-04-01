@@ -26,6 +26,8 @@
 .node-content {
     overflow: hidden;
     padding: 0;
+    display: flex;
+    align-items: center;
 }
 
 /* Title styling with forced truncation but NOT bold */
@@ -38,6 +40,7 @@
     margin: 0;
     max-width: 100%;
     line-height: 1.2;
+    vertical-align: middle;
 }
 
 .custom-node-item p {
@@ -85,4 +88,34 @@
     border: none;
     box-shadow: none;
     outline: none;
-} 
+}
+
+/* Tree Structure Styles */
+.expand-collapse-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+    cursor: pointer;
+    vertical-align: middle;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.expand-collapse-icon:hover {
+    opacity: 1;
+}
+
+.expand-collapse-icon.hidden {
+    visibility: hidden; /* Keep space but hide icon if no children */
+    cursor: default;
+}
+
+/* Add styles for different depths if needed, e.g.: */
+/*
+.custom-node-item.depth-0 { padding-left: 0; }
+.custom-node-item.depth-1 { padding-left: 15px; }
+.custom-node-item.depth-2 { padding-left: 30px; }
+*/ 

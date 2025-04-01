@@ -2,10 +2,33 @@ import React, { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import './CustomNode.css'; // Import the CSS file
 
+// Icons for expand/collapse
+const ExpandIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 8H13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8 3V13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const CollapseIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 8H13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 // Using memo for performance optimization, as node data might change
-const CustomNode = memo(({ data }) => {
-  // Destructure displayMode from data
-  const { itemData, domain, displayMode = 'titleOnly', maxContentWidth } = data;
+const CustomNode = memo(({ id, data }) => {
+  // Destructure displayMode and new tree-related props from data
+  const { 
+    itemData, 
+    domain, 
+    displayMode = 'titleOnly', 
+    maxContentWidth, 
+    depth = 0, // Add depth for potential styling
+    hasChildren = false, 
+    isExpanded = false, 
+    toggleExpansion = () => {}
+  } = data;
 
   // Remove inline style definitions
   // const nodeWidth = 220;
@@ -34,14 +57,27 @@ const CustomNode = memo(({ data }) => {
     displayText = `${itemData.id}: ${itemData.title}`; 
   }
 
+  const handleExpandClick = (e) => {
+    e.stopPropagation(); // Prevent node click
+    toggleExpansion(id); // Use node ID here
+  };
+
   return (
-    // Apply the main CSS class
-    <div className="custom-node-item">
+    // Apply the main CSS class and depth for potential styling
+    <div className={`custom-node-item depth-${depth}`}>
       {/* Handles */}
       <Handle type="target" position={Position.Left} id="left-target" style={handleStyle}/>
       
       {/* Content Wrapper with constrained width */} 
       <div style={contentStyle} className="node-content">
+        {/* Expand/Collapse Toggle */} 
+        <span 
+          className={`expand-collapse-icon ${hasChildren ? 'visible' : 'hidden'}`}
+          onClick={handleExpandClick}
+        >
+          {hasChildren ? (isExpanded ? <CollapseIcon /> : <ExpandIcon />) : null}
+        </span>
+
         {/* Title with truncation */} 
         <strong className="node-title">
             {displayText}

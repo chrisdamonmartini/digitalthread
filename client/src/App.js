@@ -21,6 +21,9 @@ import FilterNode from './components/FilterNode'; // Import the FilterNode compo
 import DomainConfigPanel from './components/DomainConfigPanel'; // Import the DomainConfigPanel component
 import ConnectorToolbar from './components/ConnectorToolbar';
 
+// First, import AppContext at the top of the file
+import { AppContext } from './AppContext';
+
 // API Error Message Component
 const APIErrorMessage = ({ error, onRetry }) => {
   // Extract the error message and status
@@ -1296,11 +1299,17 @@ function FlowView() {
         const displayItemIds = domainDisplayConfig[domainName];
         console.log(`Domain ${domainName} display config:`, displayItemIds);
         
-        if (displayItemIds && displayItemIds.length > 0) {
+        if (displayItemIds && Array.isArray(displayItemIds) && displayItemIds.length > 0) {
           // Only show items that are in the display configuration
           console.log(`Filtering ${domainName} to only show items:`, displayItemIds);
+          console.log(`BEFORE filtering: ${topLevelItems.length} items`);
+          
+          // Check if any of the display items exist in top-level items
+          const matchingIds = topLevelItems.filter(item => displayItemIds.includes(item.id)).map(item => item.id);
+          console.log(`Items matching filter criteria: ${matchingIds.length}`, matchingIds);
+          
           topLevelItems = topLevelItems.filter(item => displayItemIds.includes(item.id));
-          console.log(`${domainName}: ${topLevelItems.length} items after filtering`);
+          console.log(`AFTER filtering: ${topLevelItems.length} items`);
           
           if (topLevelItems.length === 0) {
             console.warn(`No top-level items matched the display filter for ${domainName}. Check the item IDs in the configuration.`);
@@ -1805,19 +1814,13 @@ function FlowView() {
   }, [ // Dependencies 
     localDomainOrder, missions, scenarios, requirements, parameters, functions, 
     allowOnlyAdjacentConnections, nodeDisplayMode, useCurvedEdges, showRelationshipLines, lineType, arrowheadType,
-    domainPositions, expandedNodes, appConfig, nodeWidth, childIdSets, childFunctionIds, 
+    domainPositions, expandedNodes, appConfig, 
     isLoadingConfig, isLoadingMissions, isLoadingScenarios, isLoadingRequirements, isLoadingParameters, isLoadingFunctions,
     domainFilters, 
     setNodes, setEdges,
     domainDisplayConfig,
     isLoadingDisplayConfig, 
-    domainColors, 
-    domainPositions, 
-    lineType,
-    arrowheadType,
-    expandedNodes, // Add dependency on expansion state
-    toggleNodeExpansion, // Add dependency on the toggle function
-    forceUpdate 
+    forceUpdate // Add forceUpdate to the dependency array
   ]);
 
   // Define a function to handle when a node is dragged

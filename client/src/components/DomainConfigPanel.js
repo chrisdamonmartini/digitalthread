@@ -294,23 +294,41 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
       // Show success message briefly before refreshing
       setSaveSuccess(true);
       
-      // Wait for state to update and success message to show
-      setTimeout(() => {
-        if (onSave) {
-          console.log("Refreshing flow data after config change...");
-          // Call the refresh function passed from App.js
-          onSave();
-          
-          // Wait for refresh to start before closing panel
-          setTimeout(() => {
-            console.log("Closing panel after refresh started");
-            onClose();
-          }, 500);
-        } else {
-          // If no refresh function, just close panel
-          onClose();
+      // CRITICAL: We need to manually make sure the domain display config is updated first
+      // before doing any other refreshes
+      
+      console.log("CRITICAL: Waiting for server-side config to be available...");
+      
+      // Wait for state update and confirm server-side existence
+      setTimeout(async () => {
+        try {
+          // Verify the config was saved properly with direct fetch
+          const verifyUrl = createApiEndpoint(`config/domain-display/${domainName}`);
+          const verifyResponse = await fetch(verifyUrl);
+          if (verifyResponse.ok) {
+            const verifyData = await verifyResponse.json();
+            console.log(`Verification fetch successful:`, verifyData);
+            
+            // Now we can safely refresh the flow
+            if (onSave) {
+              console.log("Config saved and verified. Refreshing flow data...");
+              onSave();
+            }
+            
+            // Now close the panel
+            setTimeout(() => {
+              console.log("Closing panel");
+              onClose();
+            }, 500);
+          } else {
+            console.error("Config verification failed:", verifyResponse.status);
+            setError("Config saved but verification failed");
+          }
+        } catch (verifyErr) {
+          console.error("Error verifying config:", verifyErr);
         }
       }, 1000);
+      
     } catch (err) {
       console.error("Error saving display configuration:", err);
       setError(`Failed to save: ${err.message}`);

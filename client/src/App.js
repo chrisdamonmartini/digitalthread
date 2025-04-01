@@ -2457,14 +2457,17 @@ function FlowView() {
   // Define a function to refetch all necessary flow data
   const refreshFlowData = useCallback(() => {
     console.log("Refreshing flow data after config change...");
+    // First, refresh all the domain items
     fetchMissions();
     fetchScenarios();
     fetchRequirements();
     fetchParameters();
     fetchFunctions();
-    // Note: Edges are usually derived from node data, 
-    // but if you fetch edges separately, add that here too.
-  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions]);
+    
+    // CRITICAL: Also refresh the domain display configurations
+    console.log("Refreshing domain display configurations...");
+    fetchDomainDisplayConfigs();
+  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions, fetchDomainDisplayConfigs]);
 
   // --- Main JSX for Flow View --- 
   return (

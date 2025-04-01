@@ -4,6 +4,25 @@ import "./DomainConfigPanel.css";
 // Add API URL handling
 const DEFAULT_API_URL = "http://localhost:3001/api";
 
+// Add domain name handling utilities at the top of the file
+const DOMAIN_CONFIG = {
+  Mission: { apiEndpoint: 'missions', childKey: 'childMissionIds' },
+  Scenario: { apiEndpoint: 'scenarios', childKey: 'childScenarioIds' },
+  Requirements: { apiEndpoint: 'requirements', childKey: 'childRequirementsIds' },
+  Parameter: { apiEndpoint: 'parameters', childKey: 'childParamIds' },
+  Functions: { apiEndpoint: 'functions', childKey: 'childFuncIds' }
+};
+
+// Helper function to get API endpoint for a domain
+const getDomainApiEndpoint = (domainName) => {
+  return DOMAIN_CONFIG[domainName]?.apiEndpoint || domainName.toLowerCase() + 's';
+};
+
+// Helper function to get child ID key for a domain
+const getChildIdKey = (domainName) => {
+  return DOMAIN_CONFIG[domainName]?.childKey || `child${domainName}Ids`;
+};
+
 // Function to get API URL with fallbacks
 const getApiUrl = () => {
   const storedApiUrl = localStorage.getItem("apiUrl");
@@ -45,24 +64,7 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
       setSaveSuccess(false);
 
       try {
-        // Use a lowercase version of domain name for API routes (consistent with backend)
-        let apiDomain = domainName.toLowerCase();
-
-        // Handle pluralization for API endpoints
-        if (domainName === "Mission") {
-          apiDomain = "missions";
-        } else if (domainName === "Scenario") {
-          apiDomain = "scenarios";
-        } else if (domainName === "Parameter") {
-          apiDomain = "parameters";
-        } else if (domainName === "Requirement") {
-          apiDomain = "requirements";
-        } else if (domainName === "Function") {
-          apiDomain = "functions";
-        } else if (!apiDomain.endsWith("s")) {
-          apiDomain = apiDomain + "s";
-        }
-
+        const apiDomain = getDomainApiEndpoint(domainName);
         console.log(
           `Fetching all available items for domain: ${domainName} using API endpoint: ${apiDomain}`,
         );
@@ -78,15 +80,33 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
 
         const data = await response.json();
         console.log(`Received ${data.length} items for ${domainName}`);
+        
+        // DETAILED INSPECTION: Log the first item's properties to find the child relationship key
+        if (data.length > 0) {
+          console.log(`DEBUG: First item properties:`, Object.keys(data[0]));
+          console.log(`DEBUG: First item full data:`, data[0]);
+          
+          // Look for any property that might contain child IDs
+          const childProperties = Object.keys(data[0]).filter(key => 
+            key.toLowerCase().includes('child') || 
+            key.toLowerCase().includes('req') || 
+            key.toLowerCase().includes('id') ||
+            (data[0][key] && Array.isArray(data[0][key]))
+          );
+          
+          console.log(`DEBUG: Potential child ID properties:`, childProperties);
+        }
+        
         setAvailableItems(data);
 
         // Add detailed logging for the fetched items
-        if (domainName === "Requirement" && data.length > 0) {
-          console.log("DEBUG: Fetched Requirement items (first 5):", JSON.stringify(data.slice(0, 5), null, 2));
-          const itemsWithChildIds = data.filter(item => item.childRequirementsIds && Array.isArray(item.childRequirementsIds));
-          console.log(`DEBUG: Found ${itemsWithChildIds.length} Requirement items with 'childRequirementsIds' property.`);
+        const childIdKey = getChildIdKey(domainName);
+        if (data.length > 0) {
+          console.log(`DEBUG: Fetched ${domainName} items (first 5):`, JSON.stringify(data.slice(0, 5), null, 2));
+          const itemsWithChildIds = data.filter(item => item[childIdKey] && Array.isArray(item[childIdKey]));
+          console.log(`DEBUG: Found ${itemsWithChildIds.length} items with '${childIdKey}' property.`);
           if (itemsWithChildIds.length > 0) {
-            console.log("DEBUG: First item with childRequirementsIds:", JSON.stringify(itemsWithChildIds[0], null, 2));
+            console.log(`DEBUG: First item with ${childIdKey}:`, JSON.stringify(itemsWithChildIds[0], null, 2));
           }
         }
 
@@ -95,24 +115,35 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
         const configResponse = await fetch(
           createApiEndpoint(`config/domain-display/${domainName}`)
         );
+
+        // Reset selected items by default
+        setSelectedItems([]);
+        
         if (configResponse.ok) {
           const configData = await configResponse.json();
           console.log(`Received display config:`, configData);
+          
+          // Set domain color if it exists
           if (configData.domainColor) {
             setDomainColor(configData.domainColor);
           }
-          if (configData.displayItems && configData.displayItems.length > 0) {
+          
+          // Handle display items if they exist and are not empty
+          if (configData.displayItems && Array.isArray(configData.displayItems) && configData.displayItems.length > 0) {
+            console.log(`Found ${configData.displayItems.length} display items in config:`, configData.displayItems);
+            
             // Match fetched config IDs with full item data
             const selectedDisplayItems = data.filter((item) =>
               configData.displayItems.includes(item.id)
             );
+            
+            console.log(`Matched ${selectedDisplayItems.length} items from available items`);
             setSelectedItems(selectedDisplayItems);
           } else {
-            setSelectedItems([]); // No items specified in config
+            console.log(`No display items found in config, keeping empty selection`);
           }
         } else {
           console.log(`No display configuration found for ${domainName}, using defaults`);
-          setSelectedItems([]); // Default to empty if fetch fails or no config exists
           setDomainColor('#00587c'); // Set default color
         }
 
@@ -131,7 +162,7 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
   useEffect(() => {
     if (topNodeOnly) {
       const childIds = new Set();
-      const childIdKey = `child${domainName}Ids`;
+      const childIdKey = getChildIdKey(domainName);
       console.log(`DEBUG: Using exact key: '${childIdKey}' to find top-level nodes`);
       
       // Collect all child IDs using ONLY the specific key
@@ -229,12 +260,24 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
       const responseData = await response.json();
       console.log(`Save response data:`, responseData);
 
-      // Show success message briefly before closing
+      // Show success message briefly before refreshing
       setSaveSuccess(true);
+      
+      // Wait for state to update and success message to show
       setTimeout(() => {
-        onClose(); // Close panel after success
         if (onSave) {
-          onSave(); // Call the refresh function passed from App.js
+          console.log("Refreshing flow data after config change...");
+          // Call the refresh function passed from App.js
+          onSave();
+          
+          // Wait for refresh to start before closing panel
+          setTimeout(() => {
+            console.log("Closing panel after refresh started");
+            onClose();
+          }, 500);
+        } else {
+          // If no refresh function, just close panel
+          onClose();
         }
       }, 1000);
     } catch (err) {

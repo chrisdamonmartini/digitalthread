@@ -804,63 +804,24 @@ main {
   background: #fff1f0;
 }
 
-/* Domain Configuration Panel Item Selector Styles */
-.domain-config-panel .item-selector {
-  display: flex;
-  align-items: center; /* Vertically align items */
-  margin-bottom: 15px; /* Space below the selector */
-}
-
-.domain-config-panel .item-select {
-  flex-grow: 1; /* Allow select to take up available space */
-  margin-right: 10px; /* Space between select and button */
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.domain-config-panel .add-item-button {
-  padding: 8px 16px;
-  background-color: #00587c; /* Match theme */
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  white-space: nowrap; /* Prevent text wrapping */
-  transition: background-color 0.2s;
-}
-
-.domain-config-panel .add-item-button:hover:not(:disabled) {
-  background-color: #004666;
-}
-
-.domain-config-panel .add-item-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-/* Adjust selected items list spacing */
-.domain-config-panel .selected-items-list {
-  margin-top: 20px;
-}
-
 /* Domain Configuration Panel Main Styles */
 .domain-config-panel {
-  box-sizing: border-box; /* Ensure padding/border are included in width */
-  position: fixed; /* Position relative to the viewport */
+  box-sizing: border-box;
+  position: fixed;
   top: 0;
-  right: -450px; /* Start hidden off-screen (adjust width as needed) */
-  width: 450px; /* Increased width */
+  right: -450px;
+  width: 450px;
   height: 100%;
   background-color: white;
   box-shadow: -2px 0 5px rgba(0,0,0,0.2);
-  z-index: 1000; /* Ensure it's above other elements */
-  transition: right 0.3s ease-in-out; /* Smooth slide animation */
-  overflow-y: auto; /* Allow vertical scrolling if content overflows */
+  z-index: 1000;
+  transition: right 0.3s ease-in-out;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  resize: horizontal; /* Make panel resizable */
+  min-width: 350px; /* Minimum width */
+  max-width: 600px; /* Maximum width */
 }
 
 .domain-config-panel.open {
@@ -1056,4 +1017,53 @@ main {
     margin-bottom: 15px;
     text-align: center;
     font-weight: 500;
+}
+
+/* Domain Configuration Panel Item Selector Styles */
+.domain-config-panel .item-selector {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+  gap: 10px; /* Add consistent spacing between elements */
+}
+
+.domain-config-panel .item-select {
+  flex: 1;
+  min-width: 0; /* Allow select to shrink */
+  max-width: calc(100% - 100px); /* Leave space for button */
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Add ellipsis for long text */
+}
+
+.domain-config-panel .add-item-button {
+  flex-shrink: 0; /* Prevent button from shrinking */
+  width: 80px; /* Fixed width for button */
+  padding: 8px 0;
+  background-color: #00587c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+
+.domain-config-panel .add-item-button:hover:not(:disabled) {
+  background-color: #004666;
+}
+
+.domain-config-panel .add-item-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Adjust selected items list spacing */
+.domain-config-panel .selected-items-list {
+  margin-top: 20px;
 }

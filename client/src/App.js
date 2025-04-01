@@ -440,8 +440,8 @@ const RelationshipLegend = () => {
                   viewBox="0 0 10 10"
                   refX="5"
                   refY="5"
-                  markerWidth="8"
-                  markerHeight="8"
+                  markerWidth="6" // Reduced size to match line
+                  markerHeight="6" // Reduced size to match line
                   orient="auto-start-reverse"
                 >
                   <path d="M 0 0 L 10 5 L 0 10 z" fill={rel.color} />
@@ -450,7 +450,7 @@ const RelationshipLegend = () => {
               <path
                 d="M 5,6 L 40,6"
                 stroke={rel.color}
-                strokeWidth="2.5"
+                strokeWidth="1.5" // Reduced thickness
                 markerEnd={`url(#marker-legend-${rel.type})`}
               />
             </svg>
@@ -1692,13 +1692,13 @@ function FlowView() {
                 type: lineType, // Use selected line type
               animated: false,
               style: { 
-                  strokeWidth: 2.5,
+                  strokeWidth: 1.5, // Reduced thickness
                 stroke: '#00587c',
               },
               markerEnd: { 
                 type: MarkerType[arrowheadType], 
-                width: 15, 
-                height: 15, 
+                width: 12, // Reduced size
+                height: 12, // Reduced size
                 color: '#00587c'
               },
                 zIndex: 5,
@@ -1752,13 +1752,13 @@ function FlowView() {
               type: lineType, // Use selected line type
               animated: false,
               style: { 
-                strokeWidth: 2.5,
+                strokeWidth: 1.5, // Reduced thickness
                 stroke: '#4caf50', // Use green for newly created connections
               },
               markerEnd: { 
                 type: MarkerType[arrowheadType], 
-                width: 15, 
-                height: 15, 
+                width: 12, // Reduced size
+                height: 12, // Reduced size
                 color: '#4caf50'
               },
               zIndex: 6, // Higher z-index to appear on top

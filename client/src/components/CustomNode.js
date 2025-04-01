@@ -39,10 +39,7 @@ const CustomNode = memo(({ id, data }) => {
 
   // Handle style to make them less visible
   const handleStyle = { 
-    width: 8, 
-    height: 8,
-    opacity: 0.6,
-    background: '#666'
+    visibility: 'hidden' // Hide handles completely
   };
   
   // Container style that respects maxContentWidth
@@ -64,8 +61,8 @@ const CustomNode = memo(({ id, data }) => {
 
   return (
     // Apply the main CSS class and depth for potential styling
-    <div className={`custom-node-item depth-${depth}`}>
-      {/* Handles */}
+    <div className={`custom-node-item depth-${depth}`} style={{ background: 'transparent', border: 'none' }}>
+      {/* Handles (will be hidden by style) */}
       <Handle type="target" position={Position.Left} id="left-target" style={handleStyle}/>
       
       {/* Content Wrapper with constrained width */} 

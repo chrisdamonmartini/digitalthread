@@ -1,25 +1,43 @@
 /* Base styles for the custom node */
 .custom-node-item {
-    border: none;
     border-radius: 2px;
     padding: 2px 6px;
-    background-color: transparent;
     font-family: 'Segoe UI', sans-serif;
     font-size: 0.9em;
     text-align: left;
     cursor: default;
-    transition: background-color 0.15s ease-in-out;
     position: relative;
     overflow: hidden;
     box-sizing: border-box;
     margin: 0;
-    box-shadow: none;
     outline: none;
 }
 
-/* Hover effect */
+/* Hover effect - ensure no background */
 .custom-node-item:hover {
-    background-color: transparent;
+    background-color: transparent !important;
+}
+
+/* Make handles hidden by default */
+.react-flow__handle {
+    visibility: hidden !important;
+}
+
+/* Ensure node is never highlighted with a border or background */
+.react-flow__node-custom {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.react-flow__node-custom.selected,
+.react-flow__node-custom:focus,
+.react-flow__node-custom:focus-within {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
 }
 
 /* Content wrapper */
@@ -30,7 +48,7 @@
     align-items: center;
 }
 
-/* Title styling with forced truncation but NOT bold */
+/* Title styling */
 .custom-node-item .node-title {
     font-weight: normal;
     display: block;
@@ -43,6 +61,7 @@
     vertical-align: middle;
 }
 
+/* Paragraph styling */
 .custom-node-item p {
     margin: 0;
     padding: 0;
@@ -62,32 +81,6 @@
     font-size: 0.8em;
     color: #666;
     margin-top: 2px;
-}
-
-/* Make handles less visible until needed */
-.react-flow__handle {
-    visibility: hidden;
-}
-
-.custom-node-item:hover .react-flow__handle {
-    visibility: visible;
-}
-
-/* Ensure node is never highlighted with a border or background */
-.react-flow__node-custom {
-    background-color: transparent;
-    border: none;
-    box-shadow: none;
-    outline: none;
-}
-
-.react-flow__node-custom.selected,
-.react-flow__node-custom:focus,
-.react-flow__node-custom:focus-within {
-    background-color: transparent;
-    border: none;
-    box-shadow: none;
-    outline: none;
 }
 
 /* Tree Structure Styles */

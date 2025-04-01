@@ -691,7 +691,7 @@ function FlowView() {
     }
   }, [fetchWithErrorHandling, setError, setAppConfig, setLocalDomainOrder]);
 
-  // Function to fetch domain display configurations - moved up before where it's used
+  // Function to fetch domain display configurations
   const fetchDomainDisplayConfigs = useCallback(async () => {
     if (localDomainOrder.length === 0) {
       console.log("No domains to fetch configs for");
@@ -699,8 +699,7 @@ function FlowView() {
       return;
     }
     
-    console.log("Fetching domain display configs for domains:", localDomainOrder);
-    console.log("IMPORTANT - Current domainDisplayConfig state:", domainDisplayConfig);
+    console.log("Fetching domain display configs...");
     setIsLoadingDisplayConfig(true);
     setError(null);
     
@@ -708,81 +707,61 @@ function FlowView() {
     const colorMap = {};
     
     try {
-      // Fetch the display configuration for each domain
-      const fetchPromises = localDomainOrder.map(async (domainName) => {
+      // Fetch each domain's display configuration sequentially
+      for (const domainName of localDomainOrder) {
         try {
-          console.log(`Fetching display config for domain: ${domainName}`);
           const url = createApiEndpoint(`config/domain-display/${domainName}`);
-          console.log(`Making request to: ${url}`);
+          console.log(`Fetching config for ${domainName} from ${url}`);
           
           const response = await fetch(url);
+          if (!response.ok && response.status !== 404) {
+            console.warn(`Error fetching config for ${domainName}: ${response.status}`);
+            displayConfigMap[domainName] = [];
+            colorMap[domainName] = '#14364F';
+            continue;
+          }
           
-          if (!response.ok) {
-            // If config doesn't exist yet, that's OK - we'll return an empty array
-            if (response.status === 404) {
-              console.log(`No config found for ${domainName} (404)`);
-              return { domainName, displayItems: [], domainColor: '#14364F' };
-            }
-            throw new Error(`Failed to fetch display config for ${domainName}`);
+          // Handle 404 (no config yet) with defaults
+          if (response.status === 404) {
+            console.log(`No config found for ${domainName} (404)`);
+            displayConfigMap[domainName] = [];
+            colorMap[domainName] = '#14364F';
+            continue;
           }
           
           const data = await response.json();
-          console.log(`Received display config for ${domainName}:`, data);
+          console.log(`Received config for ${domainName}:`, data);
           
-          // Handle both the array of IDs structure and the full items structure
+          // Extract display items (handle different formats)
           let displayItems = [];
           if (data.displayItems) {
-            // If displayItems is an array of objects with 'id' properties, extract just the IDs
-            if (Array.isArray(data.displayItems) && data.displayItems.length > 0 && typeof data.displayItems[0] === 'object') {
-              console.log(`${domainName}: Converting object array to ID array`);
-              displayItems = data.displayItems.map(item => item.id);
-            } else {
-              // Otherwise, assume it's already an array of IDs
-              console.log(`${domainName}: Using array of IDs directly`, data.displayItems);
-              displayItems = Array.isArray(data.displayItems) ? data.displayItems : [];
+            if (Array.isArray(data.displayItems)) {
+              // If objects with id property, extract ids
+              if (data.displayItems.length > 0 && typeof data.displayItems[0] === 'object') {
+                displayItems = data.displayItems.map(item => item.id);
+              } else {
+                displayItems = data.displayItems;
+              }
             }
           }
           
-          return { 
-            domainName, 
-            displayItems,
-            domainColor: data.domainColor || '#14364F'
-          };
+          displayConfigMap[domainName] = displayItems;
+          colorMap[domainName] = data.domainColor || '#14364F';
+          
+          console.log(`Processed config for ${domainName}: ${displayItems.length} items`);
         } catch (err) {
-          console.error(`Error fetching display config for ${domainName}:`, err);
-          return { domainName, displayItems: [], domainColor: '#14364F', error: err.message };
+          console.error(`Error processing ${domainName} config:`, err);
+          displayConfigMap[domainName] = [];
+          colorMap[domainName] = '#14364F';
         }
-      });
+      }
       
-      console.log(`Waiting for ${fetchPromises.length} fetch promises to complete...`);
-      const results = await Promise.all(fetchPromises);
-      console.log(`All ${results.length} fetch promises completed.`);
+      console.log("Final config map:", displayConfigMap);
+      console.log("Final color map:", colorMap);
       
-      // Create maps of domain names to display items and colors
-      results.forEach(result => {
-        // Store the actual array of display item IDs
-        displayConfigMap[result.domainName] = result.displayItems || [];
-        colorMap[result.domainName] = result.domainColor || '#14364F';
-        
-        console.log(`Stored display config for ${result.domainName}: ${result.displayItems?.length || 0} items, color: ${result.domainColor}`);
-        if (result.displayItems?.length > 0) {
-          console.log(`${result.domainName} display items:`, result.displayItems);
-        }
-      });
-      
-      console.log("BEFORE update - domainDisplayConfig:", JSON.stringify(domainDisplayConfig));
-      console.log("AFTER update - New display config map:", JSON.stringify(displayConfigMap));
-      
+      // Update state with the new configs
       setDomainDisplayConfig(displayConfigMap);
       setDomainColors(colorMap);
-      
-      // Force a recalculation of the flow layout
-      console.log("Triggering layout recalculation...");
-      // This is a workaround to ensure React re-renders with the new config
-      setTimeout(() => {
-        console.log("After timeout, current domainDisplayConfig state:", domainDisplayConfig);
-        console.log("Layout should be recalculated with updated config");
-      }, 200);
       
     } catch (err) {
       console.error('Error fetching domain display configurations:', err);
@@ -790,7 +769,7 @@ function FlowView() {
     } finally {
       setIsLoadingDisplayConfig(false);
     }
-  }, [localDomainOrder, createApiEndpoint, domainDisplayConfig]);
+  }, [localDomainOrder, createApiEndpoint]);
 
   const fetchMissions = useCallback(async () => {
     setIsLoadingMissions(true);
@@ -2482,37 +2461,21 @@ function FlowView() {
   // Define a function to refetch all necessary flow data
   const refreshFlowData = useCallback(() => {
     console.log("Refreshing flow data after config change...");
-    console.log("Before refresh, domainDisplayConfig:", JSON.stringify(domainDisplayConfig));
     
-    // FIRST: Refresh the domain display configurations before fetching domain items
-    // This ensures we have the latest display configuration when processing items
-    fetchDomainDisplayConfigs().then(() => {
-      console.log("Display configurations refreshed, now fetching domain items...");
-      
-      // SECOND: Refresh all domain items after config is loaded
-      Promise.all([
-        fetchMissions(),
-        fetchScenarios(),
-        fetchRequirements(),
-        fetchParameters(),
-        fetchFunctions()
-      ]).then(() => {
-        console.log("All domain items refreshed, layout should update now");
-        console.log("After refresh, domainDisplayConfig:", JSON.stringify(domainDisplayConfig));
-      }).catch(error => {
-        console.error("Error refreshing domain items:", error);
-      });
-    }).catch(error => {
-      console.error("Error refreshing display configurations:", error);
-      
-      // If config refresh fails, still try to refresh domain items
-      fetchMissions();
-      fetchScenarios();
-      fetchRequirements();
-      fetchParameters();
-      fetchFunctions();
-    });
-  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions, fetchDomainDisplayConfigs, domainDisplayConfig]);
+    // Simple sequential approach - first refresh configs, then data
+    console.log("Refreshing domain display configurations...");
+    fetchDomainDisplayConfigs();
+    
+    // Then refresh domain items
+    console.log("Refreshing domain items...");
+    fetchMissions();
+    fetchScenarios();
+    fetchRequirements();
+    fetchParameters();
+    fetchFunctions();
+    
+    console.log("Refresh complete - UI should update soon");
+  }, [fetchMissions, fetchScenarios, fetchRequirements, fetchParameters, fetchFunctions, fetchDomainDisplayConfigs]);
 
   // --- Main JSX for Flow View --- 
   return (

@@ -821,30 +821,13 @@ async function saveApprovedItems(session, domain, items, connectToNext) {
       itemsCreated++;
     }
     
-    // Create parent-child relationships using Neo4j RELATIONSHIPS (HAS_CHILD)
-    // This part remains useful for graph queries, even though frontend uses the array property
-    const parentChildPairs = [];
-    for (const item of items) {
-      if (item.parentId && idMap[item.id] && idMap[item.parentId]) {
-        parentChildPairs.push({ childId: idMap[item.id], parentId: idMap[item.parentId] });
-      }
-    }
-
-    if (parentChildPairs.length > 0) {
-        await tx.run(
-            `UNWIND $pairs as pair
-             MATCH (parent:${domain} {id: pair.parentId}), (child:${domain} {id: pair.childId})
-             MERGE (parent)-[:HAS_CHILD]->(child)`, 
-            { pairs: parentChildPairs }
-        );
-    }
-
     // Optional: Connect to next domain if specified
     // (Add logic here if needed based on connectToNext flag)
 
     await tx.commit();
-    console.log(`Successfully created ${itemsCreated} items and relationships for domain ${domain}`);
-    return { itemsCreated, connectionsCreated };
+    console.log(`Successfully created ${itemsCreated} items for domain ${domain}`);
+    // Adjusted success message to reflect only item creation
+    return { itemsCreated, connectionsCreated: 0 }; // connectionsCreated is now 0
 
   } catch (error) {
     console.error(`Error saving items for domain ${domain}:`, error);

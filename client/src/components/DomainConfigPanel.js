@@ -131,45 +131,31 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName }) => {
   // Filter items when availableItems or topNodeOnly changes
   useEffect(() => {
     if (topNodeOnly) {
-      // Identify top-level nodes by checking if they are present in any childId array
       const childIds = new Set();
-      
-      // Construct the EXACT child ID property name
       const childIdKey = `child${domainName}Ids`;
-      console.log(`DEBUG: Using child ID key: '${childIdKey}' to find top-level nodes`);
+      console.log(`DEBUG: Using exact key: '${childIdKey}' to find top-level nodes`);
       
-      // Collect all child IDs using the specific key
+      // Collect all child IDs using ONLY the specific key
       availableItems.forEach(item => {
         if (item[childIdKey] && Array.isArray(item[childIdKey])) {
           item[childIdKey].forEach(id => childIds.add(id));
         }
       });
       
-      // Debug log for child IDs collected
-      console.log(`DEBUG: Collected ${childIds.size} child IDs:`, Array.from(childIds).slice(0, 20)); // Log first 20
+      console.log(`DEBUG: Collected ${childIds.size} child IDs using key '${childIdKey}':`, Array.from(childIds).slice(0, 20));
       
       // Filter out items whose IDs are in the childIds set
-      const topLevelItems = availableItems.filter(item => {
-        const isChild = childIds.has(item.id);
-        if (isChild) {
-          // Log items being filtered out because they are children
-          // console.log(`DEBUG: Filtering out item ${item.id} (${item.title}) because it is a child.`);
-        }
-        return !isChild;
-      });
+      const topLevelItems = availableItems.filter(item => !childIds.has(item.id));
       
       console.log(`DEBUG: Filtered from ${availableItems.length} to ${topLevelItems.length} top-level items.`);
-      
-      // Log the first few identified top-level items for verification
       if (topLevelItems.length > 0) {
           console.log(`DEBUG: Identified top-level items (first 5):`, topLevelItems.slice(0, 5).map(i => ({id: i.id, title: i.title})));
       } else if (availableItems.length > 0) {
-          console.warn(`DEBUG: No top-level items identified. Check if items have the correct '${childIdKey}' property or if all items are children.`);
+          console.warn(`DEBUG: No top-level items identified. Ensure items have the correct '${childIdKey}' property or that not all items are children.`);
       }
       
       setFilteredItems(topLevelItems);
     } else {
-      // Show all items
       console.log("DEBUG: Showing all available items (Top Node Only filter disabled).");
       setFilteredItems(availableItems);
     }

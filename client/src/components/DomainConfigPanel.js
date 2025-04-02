@@ -369,9 +369,9 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
         </div>
 
         <div className="config-section">
-          <h3>Current Configuration</h3>
+          <h3>Current Root Nodes</h3>
           <p className="config-description">
-            Currently configured items for this domain. These items and their direct children will be shown in the domain view.
+            Currently configured Root Nodes for this domain. These Root Nodes and their direct children will be shown in the domain view.
           </p>
 
           {loading ? (
@@ -382,7 +382,7 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
             <div className="current-config-items">
               {selectedItems.length === 0 ? (
                 <p className="no-items-message">
-                  No items configured. All items will be displayed.
+                  No Root Nodes configured. All Root Nodes will be displayed.
                 </p>
               ) : (
                 <ul className="configured-items-list">
@@ -407,9 +407,9 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
         </div>
 
         <div className="config-section">
-          <h3>Add Items</h3>
+          <h3>Add Root Nodes</h3>
           <p className="config-description">
-            Select additional items to add to the domain configuration.
+            Select additional Root Nodes to add to the domain configuration.
           </p>
 
           <div className="filter-options">
@@ -419,7 +419,7 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
                 checked={topNodeOnly}
                 onChange={handleTopNodeFilterChange}
               />
-              Show Top-Level Items Only
+              Show Top-Level Nodes Only
             </label>
           </div>
 
@@ -432,7 +432,7 @@ const DomainConfigPanel = ({ isOpen, onClose, domainName, onSave }) => {
               }}
               className="item-select"
             >
-              <option value="">-- Select an item to add --</option>
+              <option value="">-- Select a Root Node to add --</option>
               {filteredItems
                 .filter(item => !selectedItems.some(selected => selected.id === item.id))
                 .map((item) => (

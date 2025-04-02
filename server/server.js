@@ -1,3 +1,7 @@
+/**
+ * Server entry point
+ */
+
 const express = require('express');
 const cors = require('cors'); // Import the cors package
 const driver = require('./db'); // Import the driver from db.js
@@ -103,6 +107,17 @@ app.use('/api/items', itemRoutes);
 const aiGeneratorRoutes = require('./routes/aiGeneratorRoutes');
 app.use('/api/ai-generator', aiGeneratorRoutes);
 
+// Import routes
+const itemTypeRoutes = require('./routes/itemTypeRoutes');  // Add the new routes
+
+// Register routes
+app.use('/api/parameters', parameterRoutes);
+app.use('/api/missions', missionRoutes);
+app.use('/api/scenarios', scenarioRoutes);
+app.use('/api/requirements', requirementRoutes);
+app.use('/api/functions', functionRoutes);
+app.use('/api/item-types', itemTypeRoutes);  // Register the new routes
+
 app.get('/', (req, res) => {
   res.send('Digital Thread Navigator Backend is running!');
 });
@@ -111,7 +126,7 @@ app.get('/', (req, res) => {
 
 // Start the server
 app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}`);
+  console.log(`Server running on port ${port}`);
 });
 
 // Remove the graceful shutdown logic for the driver here, as it's handled in db.js 

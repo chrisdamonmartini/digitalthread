@@ -1,6 +1,7 @@
 const express = require('express');
 const driver = require('../db');
 const neo4j = require('neo4j-driver');
+const Config = require('../models/Config');
 
 const router = express.Router();
 
@@ -334,6 +335,83 @@ router.put('/domain-display/:domainName', async (req, res) => {
     res.status(500).json({ error: `Failed to save display config for ${domainName}`, details: error.message });
   } finally {
     await session.close();
+  }
+});
+
+/**
+ * Get container display configuration for a specific ItemType
+ * GET /api/config/container-display/:itemtype
+ */
+router.get('/container-display/:itemtype', async (req, res) => {
+  try {
+    const { itemtype } = req.params;
+    const configKey = `config/domain-display/${itemtype}`;
+    
+    // Attempt to find existing config
+    const config = await Config.findOne({ key: configKey });
+    
+    // Return empty default if not found
+    if (!config) {
+      return res.json({
+        displayRootNode: [],
+        containerColor: '#336699'
+      });
+    }
+    
+    // Map the old key names to the new ones
+    const { displayItems, domainColor } = config.value;
+    
+    // Return with updated key names
+    return res.json({
+      displayRootNode: displayItems || [],
+      containerColor: domainColor || '#336699'
+    });
+  } catch (error) {
+    console.error(`Error getting container config for ${req.params.itemtype}:`, error);
+    return res.status(500).json({ error: `Failed to get config: ${error.message}` });
+  }
+});
+
+/**
+ * Update container display configuration for a specific ItemType
+ * PUT /api/config/container-display/:itemtype
+ */
+router.put('/container-display/:itemtype', async (req, res) => {
+  try {
+    const { itemtype } = req.params;
+    const { displayRootNode, containerColor } = req.body;
+    const configKey = `config/domain-display/${itemtype}`;
+    
+    // Map the new key names to the old ones for backward compatibility
+    const configValue = {
+      displayItems: displayRootNode || [],
+      domainColor: containerColor || '#336699'
+    };
+    
+    // Attempt to find and update existing config
+    let config = await Config.findOne({ key: configKey });
+    
+    if (config) {
+      // Update existing config
+      config.value = configValue;
+      await config.save();
+    } else {
+      // Create new config
+      config = new Config({
+        key: configKey,
+        value: configValue
+      });
+      await config.save();
+    }
+    
+    // Return updated config with new key names
+    return res.json({
+      displayRootNode: configValue.displayItems,
+      containerColor: configValue.domainColor
+    });
+  } catch (error) {
+    console.error(`Error updating container config for ${req.params.itemtype}:`, error);
+    return res.status(500).json({ error: `Failed to update config: ${error.message}` });
   }
 });
 

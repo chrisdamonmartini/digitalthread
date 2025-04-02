@@ -1,0 +1,17 @@
+{
+  "url": "http://localhost:3000/old-implementation",
+  "output": [
+    "json",
+    "html"
+  ],
+  "outputPath": "./old-implementation-results.json",
+  "chromeFlags": [
+    "--headless"
+  ],
+  "onlyCategories": [
+    "performance"
+  ],
+  "throttling": {
+    "cpuSlowdownMultiplier": 2
+  }
+} 

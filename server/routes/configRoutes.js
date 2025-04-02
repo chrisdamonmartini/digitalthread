@@ -415,4 +415,25 @@ router.put('/container-display/:itemtype', async (req, res) => {
   }
 });
 
+// Add this new route to get app-wide configuration
+router.get('/app', async (req, res) => {
+  try {
+    // Return global app configuration
+    const appConfig = {
+      itemTypes: ['Requirement', 'Parameter', 'Functions'],
+      allowOnlyAdjacentConnections: true,
+      domainConfiguration: {
+        Requirement: { color: '#e63946', displayName: 'Requirements' },
+        Parameter: { color: '#457b9d', displayName: 'Parameters' },
+        Functions: { color: '#2a9d8f', displayName: 'Functions' }
+      }
+    };
+    
+    res.json(appConfig);
+  } catch (error) {
+    console.error('Error fetching app configuration:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router; 

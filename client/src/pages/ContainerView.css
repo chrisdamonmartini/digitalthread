@@ -1,0 +1,72 @@
+.container-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: #f5f7fa;
+  overflow: hidden;
+}
+
+.container-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background-color: #3c4b64;
+  color: white;
+  border-bottom: 1px solid #2d3a4d;
+  min-height: 60px;
+}
+
+.container-view-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+.container-view-content {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  overflow-x: auto;
+  padding: 16px;
+  gap: 16px;
+}
+
+.linking-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 6px 12px;
+  border-radius: 4px;
+}
+
+.linking-message {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cancel-linking-button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.cancel-linking-button:hover {
+  background-color: #bd2130;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .container-view-content {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+} 

@@ -1,8 +1,11 @@
 import React from 'react';
-import { Link } from 'react-router-dom'; // Import Link for navigation
+import { Link, useLocation } from 'react-router-dom'; // Added useLocation for active route detection
 import './AppHeader.css'; // We'll create this CSS file next
 
 function AppHeader() {
+    // Get current location to highlight active link
+    const location = useLocation();
+    
     // Placeholder for Siemens logo - replace with actual <img> or SVG later
     const SiemensLogoPlaceholder = () => (
         <div className="logo-placeholder-siemens">SIEMENS</div>
@@ -22,6 +25,22 @@ function AppHeader() {
                     <div className="header-left">
                          {/* Placeholder for left icons/nav */}
                          <span className="header-title-new">Thread Xplorer</span>
+                         
+                         {/* Main navigation links */}
+                         <nav className="main-nav">
+                            <Link 
+                                to="/" 
+                                className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}
+                            >
+                                Flow View
+                            </Link>
+                            <Link 
+                                to="/containers" 
+                                className={`nav-link ${location.pathname === '/containers' ? 'active' : ''}`}
+                            >
+                                Containers
+                            </Link>
+                         </nav>
                     </div>
                     {/* Right side */} 
                     <div className="header-right">

@@ -25,8 +25,9 @@ import FilterNode from './components/FilterNode'; // Import the FilterNode compo
 import DomainConfigPanel from './components/DomainConfigPanel'; // Import the DomainConfigPanel component
 import ConnectorToolbar from './components/ConnectorToolbar';
 
-// First, import AppContext at the top of the file
-import { AppContext } from './AppContext';
+// Import context and new container view
+import { AppContext, AppContextProvider } from './context/AppContext';
+import ContainerView from './pages/ContainerView';
 
 // API Error Message Component
 const APIErrorMessage = ({ error, onRetry }) => {
@@ -472,8 +473,8 @@ const RelationshipLegend = () => {
 // Main content for the React Flow view
 function FlowView() { 
   // --- State needed ONLY for the Flow View --- 
-  const { appConfig, setAppConfig } = useContext(AppContext); // Use appConfig from context
-  const [forceUpdate, setForceUpdate] = useState(0); // <<< RE-ADD forceUpdate state
+  const { appConfig, setAppConfig } = useContext(AppContext);
+  const [forceUpdate, setForceUpdate] = useState(0);
   
   // React Flow State
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -2350,154 +2351,110 @@ function FlowView() {
 
   // --- Main JSX for Flow View --- 
   return (
-    <div className="flow-view-container" style={{ height: '100%' }}>
-      {/* Display API Error Message if there's an error */}
-      {error && <APIErrorMessage error={error} onRetry={retryAllConnections} />}
-      
-      {/* Show loading UI if not initialized */}
-      {(!appInitialized || isLoadingConfig) && (
-        <div className="loading-container">
-          <div className="loading-message">
-            <h2>Connecting to Digital Thread API...</h2>
-            <p>Please ensure the server is running.</p>
-            <button className="retry-button" onClick={retryAllConnections}>Retry Connection</button>
+    <ReactFlowProvider>
+      <div className="App" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+        {/* Display API Error Message if there's an error */}
+        {error && <APIErrorMessage error={error} onRetry={retryAllConnections} />}
+        
+        {/* Show loading UI if not initialized */}
+        {(!appInitialized || isLoadingConfig) && (
+          <div className="loading-container">
+            <div className="loading-message">
+              <h2>Connecting to Digital Thread API...</h2>
+              <p>Please ensure the server is running.</p>
+              <button className="retry-button" onClick={retryAllConnections}>Retry Connection</button>
+            </div>
           </div>
-        </div>
-      )}
-      
-      {/* Only render React Flow when initialized */}
-      {appInitialized && (
-        <>
-          {/* React Flow Canvas */} 
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeDrag={onNodeDrag}
-            onNodeDragStop={onNodeDragStop}
-            onNodeClick={handleNodeClick}
-            onNodeMouseEnter={handleNodeMouseEnter}
-            onNodeMouseLeave={handleNodeMouseLeave}
-            onMouseMove={handleMouseMove}
-            onEdgeContextMenu={onEdgeContextMenu}  // Add context menu for edges
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}  // Add edge types
-            fitView
-            snapToGrid={true}
-            snapGrid={[20, 20]}
-            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-            panOnDrag={[2]} // Only pan when middle mouse button (2) is used
-            minZoom={0.5}
-            maxZoom={1.5}
-            nodesDraggable={true} // Ensure nodes are draggable
-            elementsSelectable={false} // Prevent selection by default
-            style={{ cursor: 'default' }} // Set default cursor for the flow area
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background />
-            <Controls />
-            <MiniMap />
-          </ReactFlow>
-          
-          {/* Add Connector Toolbar outside ReactFlow but positioned absolutely */}
-          <ConnectorToolbar
-            onStartConnecting={handleStartConnecting}
-            onCancelConnecting={handleCancelConnecting}
-            isConnecting={isConnecting}
-            fromNode={connectionSource}
-            connectionSuccess={connectionSuccess}
-            position={{ top: 130, left: 510 }} // Position based on user screenshot
-            showRelationshipLines={showRelationshipLines}
-            setShowRelationshipLines={setShowRelationshipLines}
-            allowOnlyAdjacentConnections={allowOnlyAdjacentConnections}
-            setAllowOnlyAdjacentConnections={handleSetAllowOnlyAdjacentConnections}
-            lineType={lineType}
-            setLineType={setLineType}
-            arrowheadType={arrowheadType}
-            setArrowheadType={setArrowheadType}
-            nodeDisplayMode={nodeDisplayMode}
-            setNodeDisplayMode={setNodeDisplayMode}
-            showDomainIcons={showDomainIcons}
-            setShowDomainIcons={setShowDomainIcons}
-            useCurvedEdges={useCurvedEdges}
-            setUseCurvedEdges={setUseCurvedEdges}
-          />
-          
-          {/* Domain Configuration Panel (ensure onSave uses updated refreshFlowData) */}
-          <DomainConfigPanel 
-            isOpen={activeDomainConfig !== null}
-            onClose={closeDomainConfigPanel} // Uses updated version
-            domainName={activeDomainConfig || ''}
-            onSave={refreshFlowData} // Uses updated version
-          />
-        </>
-      )}
-    </div>
+        )}
+        
+        {/* Only render React Flow when initialized */}
+        {appInitialized && (
+          <>
+            {/* React Flow Canvas */} 
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeDrag={onNodeDrag}
+              onNodeDragStop={onNodeDragStop}
+              onNodeClick={handleNodeClick}
+              onNodeMouseEnter={handleNodeMouseEnter}
+              onNodeMouseLeave={handleNodeMouseLeave}
+              onMouseMove={handleMouseMove}
+              onEdgeContextMenu={onEdgeContextMenu}  // Add context menu for edges
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}  // Add edge types
+              fitView
+              snapToGrid={true}
+              snapGrid={[20, 20]}
+              defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+              panOnDrag={[2]} // Only pan when middle mouse button (2) is used
+              minZoom={0.5}
+              maxZoom={1.5}
+              nodesDraggable={true} // Ensure nodes are draggable
+              elementsSelectable={false} // Prevent selection by default
+              style={{ cursor: 'default' }} // Set default cursor for the flow area
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background />
+              <Controls />
+              <MiniMap />
+            </ReactFlow>
+            
+            {/* Add Connector Toolbar outside ReactFlow but positioned absolutely */}
+            <ConnectorToolbar
+              onStartConnecting={handleStartConnecting}
+              onCancelConnecting={handleCancelConnecting}
+              isConnecting={isConnecting}
+              fromNode={connectionSource}
+              connectionSuccess={connectionSuccess}
+              position={{ top: 130, left: 510 }} // Position based on user screenshot
+              showRelationshipLines={showRelationshipLines}
+              setShowRelationshipLines={setShowRelationshipLines}
+              allowOnlyAdjacentConnections={allowOnlyAdjacentConnections}
+              setAllowOnlyAdjacentConnections={handleSetAllowOnlyAdjacentConnections}
+              lineType={lineType}
+              setLineType={setLineType}
+              arrowheadType={arrowheadType}
+              setArrowheadType={setArrowheadType}
+              nodeDisplayMode={nodeDisplayMode}
+              setNodeDisplayMode={setNodeDisplayMode}
+              showDomainIcons={showDomainIcons}
+              setShowDomainIcons={setShowDomainIcons}
+              useCurvedEdges={useCurvedEdges}
+              setUseCurvedEdges={setUseCurvedEdges}
+            />
+            
+            {/* Domain Configuration Panel (ensure onSave uses updated refreshFlowData) */}
+            <DomainConfigPanel 
+              isOpen={activeDomainConfig !== null}
+              onClose={closeDomainConfigPanel} // Uses updated version
+              domainName={activeDomainConfig || ''}
+              onSave={refreshFlowData} // Uses updated version
+            />
+          </>
+        )}
+      </div>
+    </ReactFlowProvider>
   );
 }
 
 // App component now handles routing and overall layout
 function App() {
-  const [appConfig, setAppConfig] = useState({
-    domains: {
-      Mission: { color: '#14364F', displayItems: [] },
-      Scenario: { color: '#14364F', displayItems: [] },
-      Requirements: { color: '#14364F', displayItems: [] },
-      Parameter: { color: '#14364F', displayItems: [] },
-      Functions: { color: '#14364F', displayItems: [] }
-    }
-  });
-
-  // Load saved config on mount
-  useEffect(() => {
-    const loadDomainConfigs = async () => {
-      try {
-        const domains = ['Mission', 'Scenario', 'Requirements', 'Parameter', 'Functions'];
-        const configs = {};
-        
-        for (const domain of domains) {
-          try {
-            const response = await fetch(createApiEndpoint(`config/domain-display/${domain}`));
-            if (response.ok) {
-              const config = await response.json();
-              configs[domain] = {
-                color: config.domainColor || '#14364F',
-                displayItems: config.displayItems || []
-              };
-            }
-          } catch (err) {
-            console.warn(`Failed to load config for ${domain}:`, err);
-            configs[domain] = { color: '#14364F', displayItems: [] };
-          }
-        }
-
-        setAppConfig(prev => ({
-          ...prev,
-          domains: configs
-        }));
-      } catch (err) {
-        console.error('Failed to load domain configurations:', err);
-      }
-    };
-
-    loadDomainConfigs();
-  }, []);
-
   return (
-    <AppContext.Provider value={{ appConfig, setAppConfig }}>
-    <ReactFlowProvider> 
-        <div className="App" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-            <AppHeader />
-          <div className="main-content" style={{ flexGrow: 1, overflow: 'auto' }}>
-                <Routes>
-                    <Route path="/" element={<FlowView />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                </Routes>
-            </div>
+    <AppContextProvider>
+      <div className="app">
+        <AppHeader />
+        <div className="app-content">
+          <Routes>
+            <Route path="/" element={<FlowView />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/containers" element={<ContainerView />} />
+          </Routes>
         </div>
-    </ReactFlowProvider>
-    </AppContext.Provider>
+      </div>
+    </AppContextProvider>
   );
 }
 

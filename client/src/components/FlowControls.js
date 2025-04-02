@@ -41,24 +41,6 @@ const FlowControls = ({
     <div className="flow-controls">
       <div className="flow-controls-panel">
         <div className="flow-panel-section">
-          <h3>Legend</h3>
-          <div className="legend-items">
-            <div className="legend-item">
-              <div className="legend-color" style={{ backgroundColor: '#00587c' }}></div>
-              <span>Relationship Line</span>
-            </div>
-            <div className="legend-item">
-              <div className="legend-box"></div>
-              <span>Domain Container</span>
-            </div>
-            <div className="legend-item">
-              <div className="legend-item-node"></div>
-              <span>Item</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flow-panel-section">
           <h3>Display Options</h3>
           <div className="display-options">
             <label className="checkbox-container">

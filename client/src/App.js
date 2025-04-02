@@ -5,10 +5,14 @@ import 'reactflow/dist/style.css'; // Import default styles
 
 // Import icons for domain headers
 import missionIcon from './icons/typeTarget48.svg'; 
-import scenarioIcon from './icons/typeOperation48.svg';
+import scenarioIcon from './icons/typeBranchRevision48.svg'; // Updated to the correct icon file
 import requirementsIcon from './icons/Requirements.svg';
-import parameterIcon from './icons/typeItemRevision48.svg';
-import functionsIcon from './icons/typeCaeBoundaryConditionItem48.svg';
+import parameterIcon from './icons/Parameters.svg'; // Updated to the correct icon file
+import functionsIcon from './icons/Functions.svg'; // Updated to the correct icon file
+import logicalIcon from './icons/Logical.svg'; // Added logical icon
+import ebomIcon from './icons/typePartRevision48.svg'; // Added EBOM icon
+import simulationsIcon from './icons/AnalysisItem.svg'; // Added Simulations icon
+import simulationModelsIcon from './icons/typeCAEModel48.svg'; // Added Simulation Models icon
 import searchIcon from './icons/cmdSearch16.svg'; // Import search icon for the filter box
 import settingsIcon from './icons/cmdSettings24.svg'; // Import settings icon for domain configuration
 
@@ -1028,7 +1032,11 @@ function FlowView() {
       'Scenario': { icon: scenarioIcon, color: '#14364F' },
       'Requirements': { icon: requirementsIcon, color: '#14364F' },
       'Parameter': { icon: parameterIcon, color: '#14364F' },
-      'Functions': { icon: functionsIcon, color: '#14364F' }
+      'Functions': { icon: functionsIcon, color: '#14364F' },
+      'Logical': { icon: logicalIcon, color: '#14364F' },
+      'EBOM': { icon: ebomIcon, color: '#14364F' },
+      'Simulations': { icon: simulationsIcon, color: '#14364F' },
+      'SimulationModels': { icon: simulationModelsIcon, color: '#14364F' }
     }; // Rename to avoid clash
     
     // Layout parameters
@@ -1038,7 +1046,7 @@ function FlowView() {
     const spaceBelowTitle = 45; // *** Space for filter/icons ***
     const columnWidth = 460; // Width to handle indentation
     const nodeWidth = columnWidth - (parentPadding * 2) - 20; // Reduce a bit for indentation
-    const maxIndentation = 4; // Maximum number of indentation levels
+    const maxIndentation = 4;
     const indentX = Math.min(20, (nodeWidth / maxIndentation)); // Calculate indentation that won't exceed container
     const columnGap = 50;
     
@@ -1089,24 +1097,29 @@ function FlowView() {
 
     let currentColumnX = columnStartX;
 
-    localDomainOrder.forEach((domainName) => {
-        const itemMap = itemMaps[domainName];
-        const childIdSet = childIdSets[domainName];
-        if (!itemMap) return; 
+    // Define constants that will be used across all domains
+    const filterBoxHeight = 48;
+    const filterBoxPadding = 8;
+    const spaceBelowFilter = 10;
+    const searchIconSize = 16;
+    const filterBoxWidth = nodeWidth * 0.85; // Use nodeWidth that's already defined
 
+    localDomainOrder.forEach((domainName) => {
+        const itemMap = itemMaps[domainName] || new Map(); // Use empty Map if no items exist
+        const childIdSet = childIdSets[domainName] || new Set(); // Use empty Set if no child IDs exist
+        
         const parentNodeId = `domain-${domainName.replace(/\s+/g, '-')}`;
         
         // --- Define layout constants needed within this loop scope ---        
-        const filterBoxHeight = 48;
-        const filterBoxPadding = 8;
-        const spaceBelowFilter = 10;
-        const searchIconSize = 16;
-        const filterBoxWidth = nodeWidth * 0.85; // Depends on nodeWidth defined outside loop
-        const filterBoxY = parentPadding + parentTitleHeight + 30; // Depends on constants defined outside loop
         let totalContentHeight = 0; // Initialize here
-
+        const filterBoxY = parentPadding + parentTitleHeight + 30; // Depends on constants defined outside loop
+        
         // --- Filter top-level items --- 
-        let topLevelItems = Array.from(itemMap.values()).filter(item => !childIdSet?.has(item.id));
+        // Get all items if any exist, otherwise empty array
+        let topLevelItems = itemMap.size > 0 
+            ? Array.from(itemMap.values()).filter(item => !childIdSet?.has(item.id))
+            : [];
+            
         console.log(`[${parentNodeId}] Found ${topLevelItems.length} top-level items initially.`);
         
         // *** Apply filtering AND get color DIRECTLY using appConfig ***
@@ -1128,7 +1141,7 @@ function FlowView() {
 
           try {
             // Apply the filter
-            topLevelItems = topLevelItems.filter(item => displayItemIds.includes(item.id));
+          topLevelItems = topLevelItems.filter(item => displayItemIds.includes(item.id));
             
             const itemsAfterIds = topLevelItems.map(i => i.id); // Get IDs after filtering
             console.log(`>>> [${parentNodeId}] AFTER Filter IDs: ${JSON.stringify(itemsAfterIds)}`);
@@ -1201,9 +1214,11 @@ function FlowView() {
         }
         
         // --- Calculate Parent Height --- 
+        // Ensure minimum height even for empty domains
+        const minimumContentAreaHeight = topLevelItems.length === 0 ? 30 : 0; // Minimum space for empty message
         const parentHeight = parentPadding + parentTitleHeight + spaceBelowTitle + 
                              filterBoxHeight + spaceBelowFilter + // Use constants defined above
-                             totalContentHeight + parentPadding;
+                             Math.max(totalContentHeight, minimumContentAreaHeight) + parentPadding;
         const parentX = currentColumnX;
         const parentY = 0; 
 
@@ -1456,18 +1471,41 @@ function FlowView() {
 
         // --- 7. Process top-level items --- 
         let currentRelativeY = startYOffsetForItems; 
-        topLevelItems.forEach(topItem => {
-             const { yOffset: branchHeight } = processNodeAndChildren(
-                 topItem.id, 
-                 parentNodeId, 
-                 parentPadding, 
-                 currentRelativeY, 
-                 0 
-             );
-             if (branchHeight > 0) {
-                currentRelativeY += branchHeight + nodeGapY; 
-             }
-        });
+        
+        // If no items exist, show a placeholder message
+        if (topLevelItems.length === 0) {
+            newNodes.push(createNonDraggableNode({
+                id: `empty-placeholder-${parentNodeId}`,
+                parentNode: parentNodeId,
+                position: { 
+                    x: parentPadding, 
+                    y: startYOffsetForItems + 5 // Position just below filter
+                },
+                data: { label: "No items available" },
+                style: {
+                    width: nodeWidth,
+                    padding: '10px',
+                    textAlign: 'center',
+                    fontSize: '14px',
+                    color: '#666',
+                    fontStyle: 'italic'
+                }
+            }));
+        } else {
+            // Process items normally if they exist
+            topLevelItems.forEach(topItem => {
+                const { yOffset: branchHeight } = processNodeAndChildren(
+                    topItem.id, 
+                    parentNodeId, 
+                    parentPadding, 
+                    currentRelativeY, 
+                    0 
+                );
+                if (branchHeight > 0) {
+                    currentRelativeY += branchHeight + nodeGapY; 
+                }
+            });
+        }
 
         currentColumnX += columnWidth + columnGap;
     }); // End of localDomainOrder.forEach
@@ -2360,17 +2398,6 @@ function FlowView() {
             <Background />
             <Controls />
             <MiniMap />
-            
-            {/* Add Relationship Legend (Bottom-Right) */}
-            <Panel position="bottom-right" style={{ 
-              padding: '10px', 
-              background: 'white', 
-              borderRadius: '5px', 
-              boxShadow: '0 1px 4px rgba(0,0,0,0.2)', 
-              marginBottom: '40px' 
-            }}>
-              <RelationshipLegend />
-            </Panel>
           </ReactFlow>
           
           {/* Add Connector Toolbar outside ReactFlow but positioned absolutely */}
@@ -2381,25 +2408,20 @@ function FlowView() {
             fromNode={connectionSource}
             connectionSuccess={connectionSuccess}
             position={{ top: 130, left: 510 }} // Position based on user screenshot
-          />
-          
-          {/* Flow Controls with Legend and Display Options */}
-          <FlowControls 
-            nodeDisplayMode={nodeDisplayMode}
-            setNodeDisplayMode={setNodeDisplayMode}
             showRelationshipLines={showRelationshipLines}
             setShowRelationshipLines={setShowRelationshipLines}
-            showDomainIcons={showDomainIcons}
-            setShowDomainIcons={setShowDomainIcons}
-            onStartConnecting={handleStartConnecting}
             allowOnlyAdjacentConnections={allowOnlyAdjacentConnections}
             setAllowOnlyAdjacentConnections={handleSetAllowOnlyAdjacentConnections}
-            useCurvedEdges={useCurvedEdges}
-            setUseCurvedEdges={setUseCurvedEdges}
             lineType={lineType}
             setLineType={setLineType}
             arrowheadType={arrowheadType}
             setArrowheadType={setArrowheadType}
+            nodeDisplayMode={nodeDisplayMode}
+            setNodeDisplayMode={setNodeDisplayMode}
+            showDomainIcons={showDomainIcons}
+            setShowDomainIcons={setShowDomainIcons}
+            useCurvedEdges={useCurvedEdges}
+            setUseCurvedEdges={setUseCurvedEdges}
           />
           
           {/* Domain Configuration Panel (ensure onSave uses updated refreshFlowData) */}

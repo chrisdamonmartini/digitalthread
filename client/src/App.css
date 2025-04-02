@@ -734,35 +734,6 @@ main {
   pointer-events: all;
 }
 
-/* Relationship Legend Styles */
-.relationship-legend {
-  min-width: 180px;
-}
-
-.relationship-legend h3 {
-  font-size: 14px;
-  margin-top: 0;
-  margin-bottom: 8px;
-  color: #333;
-  font-weight: 600;
-}
-
-.legend-items {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-}
-
-.legend-label {
-  color: #333;
-}
-
 /* Enhanced Edge Styles */
 .react-flow__edge-path {
   transition: stroke-width 0.2s, stroke 0.2s;

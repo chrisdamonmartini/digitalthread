@@ -7,7 +7,11 @@ const ConnectorToolbar = ({
   isConnecting,
   fromNode,
   connectionSuccess = false,
-  position = { top: 130, left: 510 } // Updated default position
+  position = { top: 130, left: 510 }, // Updated default position
+  showRelationshipLines = true,
+  setShowRelationshipLines = () => {},
+  allowOnlyAdjacentConnections = true,
+  setAllowOnlyAdjacentConnections = () => {}
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   // Initialize toolbarPosition from the position prop
@@ -42,6 +46,20 @@ const ConnectorToolbar = ({
 
   const sourceInfo = getNodeDisplayInfo(fromNode);
 
+  // Handle relationship lines toggle with localStorage persistence
+  const handleToggleRelationshipLines = (e) => {
+    const checked = e.target.checked;
+    setShowRelationshipLines(checked);
+    localStorage.setItem('showRelationshipLines', JSON.stringify(checked));
+  };
+
+  // Handle cross domain connections toggle
+  const handleToggleCrossDomainConnections = (e) => {
+    const checked = e.target.checked;
+    setAllowOnlyAdjacentConnections(!checked);
+    localStorage.setItem('allowOnlyAdjacentConnections', JSON.stringify(!checked));
+  };
+
   // Show success message when connection is created
   useEffect(() => {
     if (connectionSuccess) {
@@ -55,7 +73,8 @@ const ConnectorToolbar = ({
 
   const handleMouseDown = (e) => {
     if (e.target.closest('.connector-button') || 
-        e.target.closest('.connection-status')) return; // Don't drag when clicking buttons or status
+        e.target.closest('.connection-status') ||
+        e.target.closest('.toolbar-controls')) return; // Don't drag when clicking buttons, status, or controls
     setIsDragging(true);
     dragStartPos.current = {
       x: e.clientX - toolbarPosition.x,
@@ -128,6 +147,26 @@ const ConnectorToolbar = ({
             >
               Start Connection
             </button>
+            <div className="toolbar-controls">
+              <label className="checkbox-container">
+                <input 
+                  type="checkbox" 
+                  checked={showRelationshipLines} 
+                  onChange={handleToggleRelationshipLines}
+                />
+                <span className="checkmark"></span>
+                Show Relationship Lines
+              </label>
+              <label className="checkbox-container">
+                <input 
+                  type="checkbox" 
+                  checked={!allowOnlyAdjacentConnections} 
+                  onChange={handleToggleCrossDomainConnections}
+                />
+                <span className="checkmark"></span>
+                Allow cross-sequence connections
+              </label>
+            </div>
             <div className="connection-hint">
               Connect items across domains
             </div>

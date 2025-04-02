@@ -25,9 +25,10 @@ import FilterNode from './components/FilterNode'; // Import the FilterNode compo
 import DomainConfigPanel from './components/DomainConfigPanel'; // Import the DomainConfigPanel component
 import ConnectorToolbar from './components/ConnectorToolbar';
 
-// Import context and new container view
+// Import context and components
 import { AppContext, AppContextProvider } from './context/AppContext';
-import ContainerView from './pages/ContainerView';
+import ItemTypeContainer from './components/ItemTypeContainer';
+import ContainerConfigPanel from './components/ContainerConfigPanel';
 
 // API Error Message Component
 const APIErrorMessage = ({ error, onRetry }) => {
@@ -534,7 +535,54 @@ function FlowView() {
   const nodeTypes = useMemo(() => ({
     custom: CustomNode,
     filter: FilterNode, // Register the FilterNode component
-  }), []);
+    itemTypeContainer: (props) => {
+      const {
+        domainName,
+        itemType,
+        appConfig,
+        localItemTypeOrder,
+        itemTypeIndex,
+        onOpenConfigPanel
+      } = props.data;
+      
+      return (
+        <div style={{ height: '100%', padding: '8px' }}>
+          <ItemTypeContainer
+            itemType={itemType}
+            isLoading={isLoadingMissions || isLoadingScenarios || isLoadingRequirements || 
+                     isLoadingParameters || isLoadingFunctions}
+            isBusy={isConnecting}
+            linkingState={linkingState.fromId ? { 
+              fromId: linkingState.fromId, 
+              fromItemType: linkingState.fromDomain 
+            } : null}
+            appConfig={appConfig}
+            localItemTypeOrder={localItemTypeOrder}
+            itemTypeIndex={itemTypeIndex}
+            onAddItem={(e) => {
+              e.preventDefault();
+              // Handle adding items based on form data
+              console.log("Add item triggered for", itemType);
+            }}
+            onBulkGenerate={(e, type) => {
+              e.preventDefault();
+              // Handle bulk generation
+              console.log("Bulk generate triggered for", type);
+            }}
+            onStartLinking={(itemId, type) => startLinking(itemId, type)}
+            onCompleteLink={(targetId, targetType) => completeLink(linkingState.fromId, targetId)}
+            onOpenConfigPanel={onOpenConfigPanel}
+            formState={{}}
+            setFormState={() => {}}
+          />
+        </div>
+      );
+    }
+  }), [
+    isLoadingMissions, isLoadingScenarios, isLoadingRequirements, 
+    isLoadingParameters, isLoadingFunctions, isConnecting, 
+    linkingState, startLinking, completeLink
+  ]);
   const edgeTypes = useMemo(() => ({
     custom: CustomEdge,
     straight: CustomStraightEdge,
@@ -748,8 +796,8 @@ function FlowView() {
   // Remove the fetchDomainDisplayConfigs call
   const closeDomainConfigPanel = useCallback(() => {
     setActiveDomainConfig(null);
-    // No need to fetch configs here anymore
-  }, [setActiveDomainConfig]);
+    refreshFlowData(); // Refresh the data when the panel is closed
+  }, [setActiveDomainConfig, refreshFlowData]);
 
   // --- Initialize App --- 
   const initializeApp = useCallback(() => {
@@ -2349,6 +2397,108 @@ function FlowView() {
     setForceUpdate // Add setForceUpdate dependency
   ]);
 
+  // --- Create domain group nodes function --- 
+  const createDomainGroupNodes = useCallback(() => {
+    if (!localDomainOrder || localDomainOrder.length === 0) return [];
+    
+    const nodes = [];
+    let startX = 100;
+    const startY = 100;
+    const columnWidth = 320; // Increased to accommodate ItemTypeContainer
+    const columnGap = 80;
+
+    // Create a node for each domain in order
+    localDomainOrder.forEach((domainName, index) => {
+      const domainId = `domain-${domainName}`;
+      
+      // Get domain config
+      const domainConfig = appConfig?.domainConfiguration && 
+                          appConfig.domainConfiguration[domainName] || 
+                          { color: '#3c4b64' };
+      
+      // Create domain parent node
+      nodes.push({
+        id: domainId,
+        type: 'group',
+        position: { x: startX, y: startY },
+        style: {
+          width: columnWidth,
+          height: 600, // Set a standard height
+          backgroundColor: '#f0f4f8',
+          borderRadius: '4px',
+          border: `1px solid ${domainConfig.color || '#3c4b64'}`,
+        },
+        data: {
+          label: domainName,
+          domainName: domainName,
+        },
+      });
+      
+      // Add a title node for the domain
+      nodes.push({
+        id: `title-${domainId}`,
+        parentNode: domainId,
+        position: { x: 0, y: 0 },
+        style: {
+          width: columnWidth,
+          padding: '8px 12px',
+          backgroundColor: domainConfig.color || '#3c4b64',
+          color: 'white',
+          fontWeight: 'bold',
+          borderTopLeftRadius: '4px',
+          borderTopRightRadius: '4px',
+          justifyContent: 'space-between',
+          display: 'flex',
+          alignItems: 'center',
+        },
+        data: {
+          label: domainName,
+          domainName: domainName,
+        },
+      });
+      
+      // Add ItemTypeContainer for domain content
+      nodes.push({
+        id: `content-${domainId}`,
+        parentNode: domainId,
+        position: { x: 0, y: 40 }, // Position below the header
+        type: 'itemTypeContainer', // Custom node type
+        style: {
+          width: columnWidth,
+          height: 550, // Calculate height based on parent
+        },
+        data: {
+          domainName: domainName,
+          itemType: domainName,
+          appConfig: appConfig,
+          localItemTypeOrder: localDomainOrder,
+          itemTypeIndex: index,
+          onOpenConfigPanel: (itemType) => setActiveDomainConfig(itemType),
+        },
+      });
+      
+      // Move to next column
+      startX += columnWidth + columnGap;
+    });
+    
+    return nodes;
+  }, [appConfig, localDomainOrder, setActiveDomainConfig]);
+
+  // Update the useEffect that creates nodes
+  // Find the effect that generates nodes and update it to use our function
+  useEffect(() => {
+    if (!appInitialized) return;
+    
+    console.log("Creating new nodes using the updated container approach");
+    
+    // Generate nodes using our new function
+    const domainNodes = createDomainGroupNodes();
+    setNodes(domainNodes);
+    
+    // Update other UI elements as needed
+    
+  }, [appInitialized, createDomainGroupNodes, setNodes]);
+
   // --- Main JSX for Flow View --- 
   return (
     <ReactFlowProvider>
@@ -2433,6 +2583,13 @@ function FlowView() {
               domainName={activeDomainConfig || ''}
               onSave={refreshFlowData} // Uses updated version
             />
+            
+            {/* Add the ContainerConfigPanel */}
+            <ContainerConfigPanel
+              isOpen={activeDomainConfig !== null}
+              onClose={closeDomainConfigPanel}
+              itemType={activeDomainConfig}
+            />
           </>
         )}
       </div>
@@ -2450,7 +2607,6 @@ function App() {
           <Routes>
             <Route path="/" element={<FlowView />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/containers" element={<ContainerView />} />
           </Routes>
         </div>
       </div>

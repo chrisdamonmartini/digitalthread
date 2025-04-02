@@ -34,12 +34,6 @@ function AppHeader() {
                             >
                                 Flow View
                             </Link>
-                            <Link 
-                                to="/containers" 
-                                className={`nav-link ${location.pathname === '/containers' ? 'active' : ''}`}
-                            >
-                                Containers
-                            </Link>
                          </nav>
                     </div>
                     {/* Right side */} 
